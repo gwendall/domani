@@ -2,7 +2,7 @@
   "name": "domani",
   "version": "0.3.9",
   "type": "module",
-  "description": "Domain names for developers and AI agents - search, buy, DNS, connect, all from your terminal.",
+  "description": "Domain infrastructure for AI agents. Search, register, DNS, email, connect — all from your terminal.",
   "license": "MIT",
   "author": "domani.run",
   "homepage": "https://domani.run",
@@ -36,10 +36,17 @@
     "dns",
     "registrar",
     "cli",
+    "email",
     "mcp",
     "ai-agent",
     "whois",
-    "nameserver"
+    "nameserver",
+    "transfer",
+    "ssl",
+    "parking",
+    "webhooks",
+    "x402",
+    "usdc"
   ],
   "dependencies": {
     "@clack/prompts": "^1.0.1",
