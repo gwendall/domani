@@ -1,6 +1,8 @@
 # domani
 
-Domain infrastructure for AI agents. Search, register, DNS, email, connect — all from your terminal.
+One CLI for domain names — built for humans and AI agents.
+
+Search, register, DNS, email, connect — all from your terminal.
 
 [![npm version](https://img.shields.io/npm/v/domani.svg)](https://www.npmjs.com/package/domani)
 [![license](https://img.shields.io/npm/l/domani.svg)](https://github.com/gwendall/domani/blob/main/LICENSE)
@@ -17,6 +19,16 @@ Or run directly with `npx`:
 npx domani search myapp .com .dev .ai
 ```
 
+## Why domani?
+
+### For humans
+
+Stop copy-pasting between your registrar's dashboard and your terminal. `domani` handles search, purchase, DNS, email, and hosting setup in one place.
+
+### For AI agents
+
+Every command returns structured JSON. TTY auto-detection, `--dry-run`, `--yes`, scoped API tokens, and error codes with `fix_command` for auto-recovery. Your agent can register a domain, configure DNS, and set up email without human intervention.
+
 ## Quick start
 
 ```bash
@@ -25,8 +37,43 @@ domani search myapp .com .io .dev     # Check availability
 domani buy myapp.dev                  # Purchase a domain
 domani connect myapp.dev vercel       # Auto-configure DNS for Vercel
 domani email setup myapp.dev          # Set up email
-domani email send --domain myapp.dev --to hi@friend.com --subject "Hello" --text "Sent from my terminal"
+domani email send --domain myapp.dev \
+  --to hi@friend.com \
+  --subject "Hello" \
+  --text "Sent from my terminal"
 domani status myapp.dev               # Health check (DNS, SSL, email, expiry)
+```
+
+## Examples
+
+```bash
+# Find available domains with a budget
+domani search startup --expand --max-price 20
+
+# AI-powered suggestions in a specific style
+domani suggest "minimalist productivity app" --style brandable --tlds com,dev,ai
+
+# Buy multiple domains at once
+domani buy startup.dev startup.ai --yes
+
+# Set up Vercel + Google Workspace in two commands
+domani connect startup.dev vercel
+domani connect startup.dev google-workspace
+
+# Create a mailbox and send an email
+domani email create --domain startup.dev --slug hello
+domani email send --domain startup.dev --slug hello \
+  --to investor@vc.com --subject "Deck" --text "Here's our deck."
+
+# Export DNS records before making changes
+domani dns startup.dev snapshot
+domani dns startup.dev set TXT @ "v=spf1 include:_spf.google.com ~all"
+
+# Pipe domain list to jq (auto-JSON, no --json needed)
+domani list | jq '.domains[] | {domain, expires_at}'
+
+# Introspect command schemas for agent integration
+domani schema buy --json
 ```
 
 ## Commands
@@ -111,11 +158,11 @@ domani update                      Update to the latest version
 domani uninstall                   Remove domani CLI and config
 ```
 
-## Agent-friendly
+## Agent integration
 
 Built for AI agents and scripts, not just humans.
 
-**Auto-detect**: When stdout is not a terminal, the CLI automatically switches to JSON output and skips confirmation prompts. No flags needed.
+**TTY auto-detect**: When stdout is not a terminal, the CLI automatically switches to JSON output and skips confirmation prompts. No `--json` flag needed.
 
 ```bash
 domani list | jq '.domains[].domain'
@@ -127,33 +174,61 @@ domani list | jq '.domains[].domain'
 { "error": "Not logged in", "code": "auth_required", "fix_command": "domani login" }
 ```
 
-**Flags**:
-- `--json` — Force JSON output
-- `--fields <f>` — Filter JSON fields (comma-separated)
-- `--dry-run` — Preview mutations without executing
-- `--yes` — Skip confirmation prompts
+| Code | Fix | Description |
+|------|-----|-------------|
+| `auth_required` | `domani login` | Not logged in |
+| `payment_required` | `domani billing` | No payment method on file |
+| `contact_required` | `domani contact set` | WHOIS contact info missing |
+| `validation_error` | Read `hint` | Invalid input |
+| `not_found` | — | Domain doesn't exist or not owned |
+| `rate_limited` | Wait `Retry-After` | Too many requests |
 
-**Input hardening**: All inputs are validated against path traversal, control characters, query strings, and double encoding — common agent hallucinations that could cause issues.
+**Flags**:
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Force JSON output |
+| `--fields <f>` | Filter JSON fields (comma-separated) |
+| `--dry-run` | Preview mutations without executing |
+| `--yes` | Skip confirmation prompts |
+
+**Input hardening**: All inputs are validated against path traversal, control characters, query strings, and double encoding — common agent hallucinations.
+
+**Schema introspection**: Run `domani schema <command> --json` to get parameter types, constraints, and enums before constructing a command.
 
 ## Payments
 
-Supports both card and USDC (Base/Ethereum). The CLI auto-detects which method the user has set up.
+Supports both card and USDC (Base / Ethereum). The CLI auto-detects which method the user has set up.
 
 ```bash
 domani buy myapp.dev                     # Uses saved card
 domani buy myapp.dev --payment usdc      # Pay with USDC
 ```
 
-[x402](https://www.x402.org/) protocol support lets agents pay autonomously.
+[x402](https://www.x402.org/) protocol support lets agents pay autonomously without human approval.
 
 ## Authentication
+
+| Method | Description |
+|--------|-------------|
+| `domani login` | Interactive login (opens browser) |
+| `$DOMANI_API_KEY` | API key as environment variable |
+| `~/.domani/config.json` | Saved credentials from `domani login` |
+
+The CLI checks `$DOMANI_API_KEY` first, then falls back to `~/.domani/config.json`.
 
 ```bash
 domani login                             # Interactive (opens browser)
 export DOMANI_API_KEY=domani_sk_...      # Or set env var
 ```
 
-The CLI checks `$DOMANI_API_KEY` first, then falls back to `~/.domani/config.json`.
+Scoped API tokens can be created with `domani tokens create --scopes read,dns --expires-in 86400`.
+
+## Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `DOMANI_API_KEY` | API key (takes precedence over saved config) |
 
 ## Integrations
 
