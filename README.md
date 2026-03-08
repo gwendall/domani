@@ -1,8 +1,6 @@
 # domani
 
-One CLI for domain names — built for humans and AI agents.
-
-Search, register, DNS, email, connect — all from your terminal.
+Domains and email from your terminal — built for humans and AI agents.
 
 [![npm version](https://img.shields.io/npm/v/domani.svg)](https://www.npmjs.com/package/domani)
 [![license](https://img.shields.io/npm/l/domani.svg)](https://github.com/gwendall/domani/blob/main/LICENSE)
@@ -23,25 +21,29 @@ npx domani search myapp .com .dev .ai
 
 ### For humans
 
-Stop copy-pasting between your registrar's dashboard and your terminal. `domani` handles search, purchase, DNS, email, and hosting setup in one place.
+One tool for the full stack: find a domain, buy it, point it to your app, create mailboxes, send and receive email. No dashboard, no context switching.
 
 ### For AI agents
 
-Every command returns structured JSON. TTY auto-detection, `--dry-run`, `--yes`, scoped API tokens, and error codes with `fix_command` for auto-recovery. Your agent can register a domain, configure DNS, and set up email without human intervention.
+Every command returns structured JSON. TTY auto-detection, `--dry-run`, `--yes`, scoped API tokens, and error codes with `fix_command` for auto-recovery. Your agent can register a domain, configure DNS, create a mailbox, and send email — without human intervention.
 
 ## Quick start
 
 ```bash
-domani login                          # Log in (opens browser)
+# Domain
 domani search myapp .com .io .dev     # Check availability
 domani buy myapp.dev                  # Purchase a domain
 domani connect myapp.dev vercel       # Auto-configure DNS for Vercel
-domani email setup myapp.dev          # Set up email
-domani email send --domain myapp.dev \
-  --to hi@friend.com \
-  --subject "Hello" \
-  --text "Sent from my terminal"
-domani status myapp.dev               # Health check (DNS, SSL, email, expiry)
+
+# Email
+domani email create --domain myapp.dev --slug hello   # Create hello@myapp.dev
+domani email send --domain myapp.dev --slug hello \
+  --to hi@friend.com --subject "Hello" --text "Sent from my terminal"
+domani email forward --domain myapp.dev --slug hello \
+  --forward-to me@gmail.com                           # Forward inbound to personal email
+
+# Health
+domani status myapp.dev               # DNS, SSL, email, expiry check
 ```
 
 ## Examples
@@ -50,7 +52,7 @@ domani status myapp.dev               # Health check (DNS, SSL, email, expiry)
 # Find available domains with a budget
 domani search startup --expand --max-price 20
 
-# AI-powered suggestions in a specific style
+# AI-powered name suggestions
 domani suggest "minimalist productivity app" --style brandable --tlds com,dev,ai
 
 # Buy multiple domains at once
@@ -60,16 +62,21 @@ domani buy startup.dev startup.ai --yes
 domani connect startup.dev vercel
 domani connect startup.dev google-workspace
 
-# Create a mailbox and send an email
+# Full email workflow: create, send, check inbox, forward
 domani email create --domain startup.dev --slug hello
 domani email send --domain startup.dev --slug hello \
   --to investor@vc.com --subject "Deck" --text "Here's our deck."
+domani email messages --domain startup.dev --slug hello --direction in
+domani email forward --domain startup.dev --slug hello --forward-to me@gmail.com
+
+# Webhook for inbound emails (for bots, support systems, etc.)
+domani email webhook --domain startup.dev --slug hello --url https://myapp.dev/hooks/email
 
 # Export DNS records before making changes
 domani dns startup.dev snapshot
 domani dns startup.dev set TXT @ "v=spf1 include:_spf.google.com ~all"
 
-# Pipe domain list to jq (auto-JSON, no --json needed)
+# Pipe to jq (auto-JSON when piped, no --json needed)
 domani list | jq '.domains[] | {domain, expires_at}'
 
 # Introspect command schemas for agent integration
@@ -78,22 +85,34 @@ domani schema buy --json
 
 ## Commands
 
-### Discovery
+### Domains
 
 ```
 domani search <name> [tlds...]    Check availability across TLDs (--expand for 30+)
 domani suggest <prompt>           AI-powered domain suggestions (--style, --lang, --tlds)
-domani tlds                       List all TLDs with pricing (--sort, --max-price)
-domani whois <domain>             WHOIS/RDAP lookup
-```
-
-### Registration
-
-```
 domani buy <domains...>           Purchase one or more domains (card or USDC)
 domani transfer <domain>          Transfer from another registrar
 domani renew <domain>             Renew a domain (--years 1-10)
 domani import <domain>            Import a domain you own elsewhere (DNS monitoring only)
+domani list                       List your domains
+domani status <domain>            Health check (DNS, SSL, email, expiry)
+domani tlds                       List all TLDs with pricing (--sort, --max-price)
+domani whois <domain>             WHOIS/RDAP lookup
+```
+
+### Email
+
+```
+domani email create --domain <d> --slug <s>   Create a mailbox (hello@domain)
+domani email send                   Send an email (--to, --subject, --text, --cc, --bcc)
+domani email messages --domain <d>  List messages (--direction in|out)
+domani email forward                Forward inbound to a personal address
+domani email webhook                Forward inbound as JSON to your endpoint
+domani email list --domain <d>      List mailboxes
+domani email delete --domain <d> --slug <s>   Delete a mailbox
+domani email setup <domain>         Auto-configure MX, SPF, DKIM, DMARC
+domani email status <domain>        Check email DNS health
+domani email connect <domain> <provider>   Connect external provider (Gmail, Fastmail, Proton)
 ```
 
 ### DNS
@@ -110,25 +129,9 @@ domani connect <domain> <target>   Auto-configure DNS for a provider
 
 **Supported providers**: Vercel, Netlify, Cloudflare Pages, GitHub Pages, Fly.io, Railway, Render, Google Workspace, Fastmail, Proton Mail.
 
-### Email
+### Settings
 
 ```
-domani email setup <domain>         Set up email (MX, SPF, DKIM, DMARC auto-configured)
-domani email status <domain>        Check email DNS health
-domani email list --domain <d>      List mailboxes
-domani email create --domain <d> --slug hello   Create hello@domain
-domani email delete --domain <d> --slug hello   Delete a mailbox
-domani email send                   Send an email (--to, --subject, --text, --cc, --bcc)
-domani email messages --domain <d>  List messages (--direction in|out)
-domani email forward                Forward inbound to a personal address
-domani email webhook                Forward inbound as JSON to your endpoint
-domani email connect <domain> <provider>   Connect external email (Gmail, Fastmail, Proton)
-```
-
-### Domain settings
-
-```
-domani status <domain>             Health check (DNS, SSL, email, expiry)
 domani settings <domain>           View/update auto-renew, WHOIS privacy, security lock
 domani contact [view|set]          Manage WHOIS contact info
 domani parking <domain>            Manage parking page (enable/disable/price)
