@@ -21,7 +21,7 @@ npx domani search myapp .com .dev .ai
 
 ### For humans
 
-One tool for the full stack: find a domain, buy it, point it to your app, create mailboxes, send and receive email. No dashboard, no context switching.
+Register domains, manage DNS, and send email — from one place. Prefer a UI? [domani.run](https://domani.run) has a full web dashboard with a real inbox (compose, reply, threads) so you can manage everything without touching the terminal.
 
 ### For AI agents
 
@@ -233,16 +233,19 @@ Scoped API tokens can be created with `domani tokens create --scopes read,dns --
 |----------|-------------|
 | `DOMANI_API_KEY` | API key (takes precedence over saved config) |
 
-## Integrations
+## Beyond the CLI
 
-Everything the CLI does is also available via:
+domani is a full platform. Use whichever interface fits your workflow:
 
-- **REST API** — [domani.run/docs](https://domani.run/docs)
-- **MCP Server** — Works with Claude Code, Cursor, Windsurf, and any MCP-compatible agent
-- **Agent Skill** — Install as a Claude Code skill: `npx skills add domani.run`
-- **CONTEXT.md** — Agent decision guide: [domani.run/CONTEXT.md](https://domani.run/CONTEXT.md)
+| Interface | Best for | Link |
+|-----------|----------|------|
+| **Web app** | Humans who prefer a UI — dashboard, inbox with threads, DNS editor | [domani.run](https://domani.run) |
+| **CLI** | Developers, scripts, CI/CD | `npm i -g domani` |
+| **REST API** | Custom integrations | [domani.run/docs](https://domani.run/docs) |
+| **MCP Server** | Claude Code, Cursor, Windsurf, and any MCP-compatible agent | [domani.run/mcp](https://domani.run/docs) |
+| **Agent Skill** | Claude Code skill (auto-installs CLI) | `npx skills add domani.run` |
 
-Learn more at [domani.run](https://domani.run).
+For agent builders, [CONTEXT.md](https://domani.run/CONTEXT.md) is a decision guide that teaches your agent how to think when using domani — when to search vs. suggest, how to handle DNS merges, payment flows, and error recovery.
 
 ## License
 
