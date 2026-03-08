@@ -1,0 +1,55 @@
+{
+  "name": "domani",
+  "version": "0.3.9",
+  "type": "module",
+  "description": "Domain names for developers and AI agents - search, buy, DNS, connect, all from your terminal.",
+  "license": "MIT",
+  "author": "domani.run",
+  "homepage": "https://domani.run",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gwendall/domani.git"
+  },
+  "bin": {
+    "domani": "./dist/domani.cjs"
+  },
+  "files": [
+    "dist/domani.cjs",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npx tsx --test src/__tests__/*.test.ts",
+    "test:e2e": "npx tsx --test src/__tests__/e2e/*.test.ts",
+    "test:e2e:full": "E2E_MUTATE=1 npx tsx --test src/__tests__/e2e/*.test.ts",
+    "test:all": "npx tsx --test src/__tests__/*.test.ts src/__tests__/e2e/*.test.ts",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "domain",
+    "domains",
+    "dns",
+    "registrar",
+    "cli",
+    "mcp",
+    "ai-agent",
+    "whois",
+    "nameserver"
+  ],
+  "dependencies": {
+    "@clack/prompts": "^1.0.1",
+    "commander": "^13.1.0",
+    "picocolors": "^1.1.1",
+    "yocto-spinner": "^1.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.27.3",
+    "typescript": "^5.0.0"
+  }
+}
