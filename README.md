@@ -1,9 +1,23 @@
 # domani
 
-Domains and email from your terminal — built for humans and AI agents.
+Domains and email — for humans and AI agents.
+
+Register domains, manage DNS, create mailboxes, send and receive email. From your terminal, your agent, or the web.
 
 [![npm version](https://img.shields.io/npm/v/domani.svg)](https://www.npmjs.com/package/domani)
 [![license](https://img.shields.io/npm/l/domani.svg)](https://github.com/gwendall/domani/blob/main/LICENSE)
+
+## How it works
+
+domani gives you one account and multiple ways in:
+
+- **[Web](https://domani.run)** — Dashboard with a full inbox (compose, reply, threads), DNS editor, domain management
+- **CLI** — This package. Everything the web app does, from your terminal
+- **[MCP Server](https://domani.run/mcp)** — 65 tools for Claude Code, Cursor, Windsurf, and any MCP-compatible agent
+- **[Agent Skill](https://domani.run/SKILL.md)** — Step-by-step guide your agent can follow. Install with `npx skills add domani.run`
+- **[REST API](https://domani.run/docs)** — Direct HTTP access to everything
+
+All interfaces share the same API key and the same data.
 
 ## Install
 
@@ -16,16 +30,6 @@ Or run directly with `npx`:
 ```bash
 npx domani search myapp .com .dev .ai
 ```
-
-## Why domani?
-
-### For humans
-
-Register domains, manage DNS, and send email — from one place. Prefer a UI? [domani.run](https://domani.run) has a full web dashboard with a real inbox (compose, reply, threads) so you can manage everything without touching the terminal.
-
-### For AI agents
-
-Every command returns structured JSON. TTY auto-detection, `--dry-run`, `--yes`, scoped API tokens, and error codes with `fix_command` for auto-recovery. Your agent can register a domain, configure DNS, create a mailbox, and send email — without human intervention.
 
 ## Quick start
 
@@ -232,20 +236,6 @@ Scoped API tokens can be created with `domani tokens create --scopes read,dns --
 | Variable | Description |
 |----------|-------------|
 | `DOMANI_API_KEY` | API key (takes precedence over saved config) |
-
-## Beyond the CLI
-
-domani is a full platform. Use whichever interface fits your workflow:
-
-| Interface | Best for | Link |
-|-----------|----------|------|
-| **Web app** | Humans who prefer a UI — dashboard, inbox with threads, DNS editor | [domani.run](https://domani.run) |
-| **CLI** | Developers, scripts, CI/CD | `npm i -g domani` |
-| **REST API** | Custom integrations | [domani.run/docs](https://domani.run/docs) |
-| **MCP Server** | Claude Code, Cursor, Windsurf, and any MCP-compatible agent | [domani.run/mcp](https://domani.run/docs) |
-| **Agent Skill** | Claude Code skill (auto-installs CLI) | `npx skills add domani.run` |
-
-For agent builders, [CONTEXT.md](https://domani.run/CONTEXT.md) is a decision guide that teaches your agent how to think when using domani — when to search vs. suggest, how to handle DNS merges, payment flows, and error recovery.
 
 ## License
 
