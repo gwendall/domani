@@ -14,6 +14,7 @@ domani gives you one account and multiple ways in:
 - **[Web](https://domani.run)** — Dashboard with a full inbox (compose, reply, threads), DNS editor, domain management
 - **CLI** — This package. Everything the web app does, from your terminal
 - **[MCP Server](https://domani.run/mcp)** — 65 tools for Claude Code, Cursor, Windsurf, and any MCP-compatible agent
+- **[OpenClaw](https://openclaw.com)** — `clawhub install domani.run`
 - **[Agent Skill](https://domani.run/SKILL.md)** — Step-by-step guide your agent can follow. Install with `npx skills add domani.run`
 - **[REST API](https://domani.run/docs)** — Direct HTTP access to everything
 
