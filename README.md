@@ -14,7 +14,7 @@ domani gives you one account and multiple ways in:
 - **[Web](https://domani.run)** — Dashboard with a full inbox (compose, reply, threads), DNS editor, domain management
 - **CLI** — This package. Everything the web app does, from your terminal
 - **[MCP Server](https://domani.run/mcp)** — 65 tools for Claude Code, Cursor, Windsurf, and any MCP-compatible agent
-- **[OpenClaw](https://openclaw.com)** — `clawhub install domani.run`
+- **[OpenClaw](https://openclaw.com)** — `clawhub install domani`
 - **[Agent Skill](https://domani.run/SKILL.md)** — Step-by-step guide your agent can follow. Install with `npx skills add domani.run`
 - **[REST API](https://domani.run/docs)** — Direct HTTP access to everything
 
@@ -41,11 +41,11 @@ domani buy myapp.dev                  # Purchase a domain
 domani connect myapp.dev vercel       # Auto-configure DNS for Vercel
 
 # Email
-domani email create --domain myapp.dev --slug hello   # Create hello@myapp.dev
-domani email send --domain myapp.dev --slug hello \
-  --to hi@friend.com --subject "Hello" --text "Sent from my terminal"
-domani email forward --domain myapp.dev --slug hello \
-  --forward-to me@gmail.com                           # Forward inbound to personal email
+domani email create hello@myapp.dev               # Create hello@myapp.dev
+domani email send hello@myapp.dev \
+  --to hi@friend.com --subject "Hello" --body "Sent from my terminal"
+domani email forward hello@myapp.dev \
+  --forward-to me@gmail.com                        # Forward inbound to personal email
 
 # Health
 domani status myapp.dev               # DNS, SSL, email, expiry check
@@ -68,14 +68,14 @@ domani connect startup.dev vercel
 domani connect startup.dev google-workspace
 
 # Full email workflow: create, send, check inbox, forward
-domani email create --domain startup.dev --slug hello
-domani email send --domain startup.dev --slug hello \
-  --to investor@vc.com --subject "Deck" --text "Here's our deck."
-domani email messages --domain startup.dev --slug hello --direction in
-domani email forward --domain startup.dev --slug hello --forward-to me@gmail.com
+domani email create hello@startup.dev
+domani email send hello@startup.dev \
+  --to investor@vc.com --subject "Deck" --body "Here's our deck."
+domani email inbox hello@startup.dev --direction in
+domani email forward hello@startup.dev --forward-to me@gmail.com
 
 # Webhook for inbound emails (for bots, support systems, etc.)
-domani email webhook --domain startup.dev --slug hello --url https://myapp.dev/hooks/email
+domani email webhook hello@startup.dev --url https://myapp.dev/hooks/email
 
 # Export DNS records before making changes
 domani dns startup.dev snapshot
@@ -108,15 +108,15 @@ domani whois <domain>             WHOIS/RDAP lookup
 ### Email
 
 ```
-domani email create --domain <d> --slug <s>   Create a mailbox (hello@domain)
-domani email send                   Send an email (--to, --subject, --text, --cc, --bcc)
-domani email messages --domain <d>  List messages (--direction in|out)
-domani email forward                Forward inbound to a personal address
-domani email webhook                Forward inbound as JSON to your endpoint
-domani email list --domain <d>      List mailboxes
-domani email delete --domain <d> --slug <s>   Delete a mailbox
-domani email setup <domain>         Auto-configure MX, SPF, DKIM, DMARC
-domani email status <domain>        Check email DNS health
+domani email list                    List all mailboxes
+domani email create user@domain      Create a mailbox
+domani email delete user@domain      Delete a mailbox
+domani email inbox user@domain       List messages (--direction in|out)
+domani email send user@domain        Send an email (--to, --subject, --body, --cc, --bcc)
+domani email forward user@domain     Forward inbound to a personal address (--forward-to)
+domani email webhook user@domain     Forward inbound as JSON to your endpoint (--url)
+domani email setup <domain>          Auto-configure MX, SPF, DKIM, DMARC
+domani email status <domain>         Check email DNS health
 domani email connect <domain> <provider>   Connect external provider (Gmail, Fastmail, Proton)
 ```
 

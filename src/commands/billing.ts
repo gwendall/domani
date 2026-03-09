@@ -1,9 +1,9 @@
 import { apiRequest } from "../api.js";
 import pc from "picocolors";
-import { S, fmt, blank, createSpinner, openUrl, fail } from "../ui.js";
+import { S, fmt, blank, createSpinner, openUrl, fail, jsonOut } from "../ui.js";
 
-export async function billing(): Promise<void> {
-  const s = createSpinner();
+export async function billing(options?: { json?: boolean }): Promise<void> {
+  const s = createSpinner(!options?.json);
   s.start("Setting up billing session");
 
   const res = await apiRequest("/api/billing/setup", {
@@ -15,15 +15,20 @@ export async function billing(): Promise<void> {
 
   if (!res.ok) {
     s.stop("Failed");
-    fail(data.error || data.message, { hint: data.hint, status: res.status });
+    fail(data.error || data.message, { hint: data.hint, status: res.status, json: options?.json });
   }
 
   if (!data.url) {
     s.stop("Failed");
-    fail("No checkout URL returned", { hint: "Try again or add a payment method at the dashboard." });
+    fail("No checkout URL returned", { hint: "Try again or add a payment method at the dashboard.", json: options?.json });
   }
 
   s.stop("Checkout ready");
+
+  if (options?.json) {
+    jsonOut({ url: data.url });
+    return;
+  }
 
   blank();
   console.log(`  ${pc.dim("Opening browser")} ${S.arrow} ${fmt.url(data.url)}`);

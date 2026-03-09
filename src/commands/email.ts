@@ -21,7 +21,7 @@ import { requireValidDomain } from "../validate.js";
 import { pickDomain } from "../prompt.js";
 
 /** Known subcommands (used for legacy detection) */
-const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "messages", "webhook", "forward", "check", "connect"];
+const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "webhook", "forward", "check", "connect"];
 
 /** Provider display names */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -56,6 +56,8 @@ interface EmailOptions {
   references?: string;
   direction?: string;
   limit?: string;
+  body?: string;
+  from?: string;
 }
 
 function recordCells(r: DnsRecord): string[] {
@@ -68,6 +70,15 @@ function recordCells(r: DnsRecord): string[] {
 
 function providerLabel(name: string): string {
   return PROVIDER_LABELS[name] || name;
+}
+
+/** Parse "user@domain" from arg2 into options.slug and options.domain */
+function parseEmailArg(arg2: string | undefined, options: EmailOptions): void {
+  if (arg2 && arg2.includes("@")) {
+    const [slug, domain] = arg2.split("@", 2);
+    if (!options.slug && slug) options.slug = slug;
+    if (!options.domain && domain) options.domain = domain;
+  }
 }
 
 async function requireDomain(options: EmailOptions): Promise<string> {
@@ -92,10 +103,25 @@ export async function email(
     return interactiveProvider(action, !!options.json, options.fields);
   }
 
+  // Parse user@domain shorthand from arg2 (e.g. `domani email create hello@example.com`)
+  parseEmailArg(arg2, options);
+
+  // --body is alias for --text
+  if (options.body && !options.text) options.text = options.body;
+  // --from user@domain is alias for --domain + --slug
+  if (options.from && options.from.includes("@")) {
+    const [slug, domain] = options.from.split("@", 2);
+    if (!options.slug && slug) options.slug = slug;
+    if (!options.domain && domain) options.domain = domain;
+  }
+
   switch (action) {
     case undefined:
+      return listMailboxesCli(options);
     case "list":
       return listMailboxesCli(options);
+    case "inbox":
+      return messagesCli(options);
     case "setup":
       return setupEmail(options);
     case "status":
@@ -108,8 +134,6 @@ export async function email(
       return deleteMailboxCli(options);
     case "send":
       return sendEmailCli(options);
-    case "messages":
-      return messagesCli(options);
     case "webhook":
       return webhookCli(options);
     case "forward":
@@ -120,7 +144,7 @@ export async function email(
       return connectProvider(options.domain || await pickDomain(), arg2 || undefined, !!options.json, options.fields);
     default:
       fail(`Unknown action: ${action}`, {
-        hint: "Actions: list, setup, status, remove, create, delete, send, messages, webhook, forward, check, connect",
+        hint: "Actions: list, inbox, create, delete, send, forward, webhook, setup, status, check, connect",
         code: "validation_error",
         json: options.json,
         fields: options.fields,
@@ -277,7 +301,7 @@ async function listMailboxesCli(options: EmailOptions): Promise<void> {
     blank();
     console.log(`  ${pc.dim("No mailboxes.")}`);
     blank();
-    hintCommand("Create one:", "domani email create --domain example.com --slug hello");
+    hintCommand("Create one:", "domani email create hello@example.com");
     blank();
     return;
   }
@@ -337,7 +361,7 @@ async function createMailboxCli(options: EmailOptions): Promise<void> {
 async function deleteMailboxCli(options: EmailOptions): Promise<void> {
   const domain = await requireDomain(options);
   if (!options.slug) {
-    fail("Slug required", { hint: "Usage: domani email delete --domain example.com --slug hello", code: "validation_error", json: options.json, fields: options.fields });
+    fail("Slug required", { hint: "Usage: domani email delete hello@example.com", code: "validation_error", json: options.json, fields: options.fields });
   }
   if (options.dryRun) {
     return dryRunOut("email_delete_mailbox", { domain, address: `${options.slug}@${domain}` }, options.json, options.fields);
@@ -373,10 +397,10 @@ async function deleteMailboxCli(options: EmailOptions): Promise<void> {
 async function sendEmailCli(options: EmailOptions): Promise<void> {
   const domain = await requireDomain(options);
   if (!options.slug) {
-    fail("Slug required", { hint: "Usage: domani email send --domain example.com --slug hello --to user@test.com --subject Hi --text Hello", code: "validation_error", json: options.json, fields: options.fields });
+    fail("Slug required", { hint: "Usage: domani email send hello@example.com --to user@test.com --subject \"Hi\" --body \"Hello\"", code: "validation_error", json: options.json, fields: options.fields });
   }
   if (!options.to) {
-    fail("Recipient required", { hint: "Usage: domani email send --domain example.com --slug hello --to user@test.com", code: "validation_error", json: options.json, fields: options.fields });
+    fail("Recipient required", { hint: "Usage: domani email send hello@example.com --to user@test.com", code: "validation_error", json: options.json, fields: options.fields });
   }
 
   if (options.dryRun) {
@@ -429,7 +453,7 @@ async function sendEmailCli(options: EmailOptions): Promise<void> {
 async function messagesCli(options: EmailOptions): Promise<void> {
   const domain = await requireDomain(options);
   if (!options.slug) {
-    fail("Slug required", { hint: "Usage: domani email messages --domain example.com --slug hello [--direction in|out] [--limit 20]", code: "validation_error", json: options.json, fields: options.fields });
+    fail("Slug required", { hint: "Usage: domani email inbox hello@example.com [--direction in|out] [--limit 20]", code: "validation_error", json: options.json, fields: options.fields });
   }
 
   const params = new URLSearchParams();
@@ -486,7 +510,7 @@ async function messagesCli(options: EmailOptions): Promise<void> {
 async function webhookCli(options: EmailOptions): Promise<void> {
   const domain = await requireDomain(options);
   if (!options.slug) {
-    fail("Slug required", { hint: "Usage: domani email webhook --domain example.com --slug hello --url https://...", code: "validation_error", json: options.json, fields: options.fields });
+    fail("Slug required", { hint: "Usage: domani email webhook hello@example.com --url https://...", code: "validation_error", json: options.json, fields: options.fields });
   }
   if (options.dryRun) {
     return dryRunOut("email_webhook", {
@@ -526,7 +550,7 @@ async function webhookCli(options: EmailOptions): Promise<void> {
 async function forwardCli(options: EmailOptions): Promise<void> {
   const domain = await requireDomain(options);
   if (!options.slug) {
-    fail("Slug required", { hint: "Usage: domani email forward --domain example.com --slug hello --forward-to me@gmail.com", code: "validation_error", json: options.json, fields: options.fields });
+    fail("Slug required", { hint: "Usage: domani email forward hello@example.com --forward-to me@gmail.com", code: "validation_error", json: options.json, fields: options.fields });
   }
   if (options.dryRun) {
     return dryRunOut("email_forward", {

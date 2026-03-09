@@ -1,5 +1,5 @@
 import { apiRequest } from "../api.js";
-import { confirm as clackConfirm } from "@clack/prompts";
+import { confirm as clackConfirm, text, isCancel } from "@clack/prompts";
 import pc from "picocolors";
 import { S, fmt, heading, row, blank, hintCommand, createSpinner, jsonOut, skipConfirm, dryRunOut, fail } from "../ui.js";
 import { requireValidDomain } from "../validate.js";
@@ -7,16 +7,26 @@ import { APP_DOMAIN } from "../brand.js";
 
 export async function transfer(
   domain: string,
-  options: { authCode: string; yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string }
+  options: { authCode?: string; yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string }
 ): Promise<void> {
   requireValidDomain(domain, options);
   if (!options.authCode) {
-    fail("--auth-code is required", {
-      hint: "Get the EPP/auth code from your current registrar.",
-      code: "validation_error",
-      json: options.json,
-      fields: options.fields,
+    if (options.json || !process.stdout.isTTY) {
+      fail("--auth-code is required", {
+        hint: "Get the EPP/auth code from your current registrar.",
+        code: "validation_error",
+        json: options.json,
+        fields: options.fields,
+      });
+    }
+    const code = await text({
+      message: "Enter the EPP/auth code from your current registrar:",
+      validate: (v) => (!v || v.trim().length === 0 ? "Auth code is required" : undefined),
     });
+    if (isCancel(code)) {
+      process.exit(0);
+    }
+    options.authCode = code as string;
   }
 
   const s = createSpinner(!options.json);

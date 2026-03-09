@@ -89,6 +89,7 @@ program
 program
   .command("billing")
   .description("Add or update payment method (opens browser)")
+  .option("--json", "Output as JSON (returns checkout URL)")
   .action(billing);
 
 program
@@ -166,7 +167,7 @@ program
 program
   .command("transfer <domain>")
   .description("Transfer a domain from another registrar")
-  .requiredOption("--auth-code <code>", "EPP/auth code from current registrar")
+  .option("--auth-code <code>", "EPP/auth code from current registrar")
   .option("--yes", "Skip confirmation prompt")
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")
@@ -221,14 +222,16 @@ program
 
 program
   .command("email [action] [arg2]")
-  .description("Manage email: setup, status, remove, list, create, delete, send, messages, webhook, forward, check, connect")
+  .description("Manage email: list, inbox, create, delete, send, forward, webhook, setup, status, check, connect")
   .option("--domain <domain>", "Domain name")
   .option("--slug <slug>", "Mailbox slug (local part before @)")
+  .option("--from <email>", "Sender address user@domain (alternative to --domain + --slug)")
   .option("--to <email>", "Recipient email address (for send)")
   .option("--cc <emails>", "CC recipients, comma-separated (for send)")
   .option("--bcc <emails>", "BCC recipients, comma-separated (for send)")
   .option("--subject <s>", "Email subject (for send)")
   .option("--text <t>", "Email body text (for send)")
+  .option("--body <t>", "Email body text (alias for --text)")
   .option("--in-reply-to <message-id>", "Message-ID of email being replied to (for threading)")
   .option("--references <message-ids>", "Space-separated Message-ID chain (for threading)")
   .option("--url <url>", "Webhook URL (for webhook)")
@@ -324,6 +327,7 @@ program
 
 program
   .command("webhooks [action]")
+  .alias("webhook")
   .description("Manage webhook endpoints (list/create/update/delete/deliveries/events)")
   .option("--url <url>", "Webhook HTTPS URL")
   .option("--events <events>", "Comma-separated event types")
@@ -349,6 +353,7 @@ program
 program
   .command("update")
   .description("Update domani CLI to the latest version")
+  .option("--json", "Output as JSON (check version without updating)")
   .action(update);
 
 program

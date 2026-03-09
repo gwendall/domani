@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import fs from "fs";
 import { getApiUrl, CLI_VERSION } from "../config.js";
 import pc from "picocolors";
-import { S, blank, createSpinner, fail } from "../ui.js";
+import { S, blank, createSpinner, fail, jsonOut } from "../ui.js";
 
 function compareVersions(a: string, b: string): number {
   const pa = a.split(".").map(Number);
@@ -14,8 +14,8 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-export async function update(): Promise<void> {
-  const s = createSpinner();
+export async function update(options?: { json?: boolean }): Promise<void> {
+  const s = createSpinner(!options?.json);
   s.start("Checking for updates");
 
   const apiUrl = getApiUrl();
@@ -33,6 +33,16 @@ export async function update(): Promise<void> {
 
     if (compareVersions(latest, CLI_VERSION) <= 0) {
       s.stop(`${S.success} Already up to date (v${CLI_VERSION})`);
+      if (options?.json) {
+        jsonOut({ current: CLI_VERSION, latest, up_to_date: true });
+      }
+      return;
+    }
+
+    if (options?.json) {
+      s.stop("");
+      // In JSON mode, just report versions — don't auto-update
+      jsonOut({ current: CLI_VERSION, latest, up_to_date: false, hint: "Run `domani update` to upgrade." });
       return;
     }
 
