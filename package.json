@@ -1,6 +1,6 @@
 {
   "name": "domani",
-  "version": "0.3.9",
+  "version": "0.3.12",
   "type": "module",
   "description": "Domain infrastructure for AI agents. Search, register, DNS, email, connect — all from your terminal.",
   "license": "MIT",

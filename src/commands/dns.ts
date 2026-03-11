@@ -222,7 +222,7 @@ export async function dns(
     let body: string | undefined;
 
     if (options?.file) {
-      // Load snapshot from file — restrict to cwd to prevent path traversal
+      // Load snapshot from file - restrict to cwd to prevent path traversal
       const filepath = resolve(process.cwd(), options.file);
       if (!filepath.startsWith(process.cwd())) {
         fail("File path must be within the current directory", {

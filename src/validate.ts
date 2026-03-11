@@ -1,5 +1,5 @@
 /**
- * Input hardening — catches common AI agent hallucinations and malformed input.
+ * Input hardening - catches common AI agent hallucinations and malformed input.
  *
  * Agents sometimes fabricate domain names with path traversal, control characters,
  * query strings, or double-encoded payloads. These validators reject bad input
@@ -9,7 +9,6 @@
 // ── Patterns ─────────────────────────────────────────
 
 /** ASCII control characters (0x00–0x1F) except tab/newline */
-// eslint-disable-next-line no-control-regex
 const CONTROL_CHAR_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f]/;
 
 /** Path traversal sequences */

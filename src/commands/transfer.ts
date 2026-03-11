@@ -65,7 +65,6 @@ export async function transfer(
   }
 
   if (!skipConfirm(options)) {
-    blank();
     const price = check.price != null ? ` for ${fmt.price(check.price.toFixed(2))}` : "";
     const ok = await clackConfirm({
       message: `Transfer ${pc.bold(domain)} to ${APP_DOMAIN}${price}? (includes 1 year renewal)`,
@@ -86,7 +85,7 @@ export async function transfer(
 
   if (!res.ok) {
     s.stop("Transfer failed");
-    fail(data.error || data.message, { hint: data.hint, fixUrl: data.setup_url, status: res.status, json: options.json, fields: options.fields });
+    fail(data.error || data.message, { hint: data.hint, fixUrl: data.setup_url || data.payment_options?.card?.setup_url, status: res.status, json: options.json, fields: options.fields });
   }
 
   s.stop(`${S.success} Transfer initiated`);

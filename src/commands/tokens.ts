@@ -126,7 +126,7 @@ async function createToken(options: { json?: boolean; fields?: string; name?: st
   row("Expires", data.expiresAt ? new Date(data.expiresAt).toLocaleString() : "Never");
   blank();
   console.log(`  ${pc.yellow("!")} ${pc.bold("Key:")} ${data.key}`);
-  console.log(`  ${pc.dim("Save this key — it will not be shown again.")}`);
+  console.log(`  ${pc.dim("Save this key - it will not be shown again.")}`);
   blank();
 }
 

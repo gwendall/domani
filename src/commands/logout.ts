@@ -1,4 +1,4 @@
-import { clearConfig, getConfig } from "../config.js";
+import { clearConfig, getConfig, saveConfig } from "../config.js";
 import pc from "picocolors";
 import { S, jsonOut } from "../ui.js";
 
@@ -13,7 +13,10 @@ export async function logout(options: { json?: boolean }): Promise<void> {
     return;
   }
 
+  const { api_url } = config;
   clearConfig();
+  // Preserve api_url so local dev setup survives logout
+  if (api_url) saveConfig({ api_url });
   if (options.json) {
     jsonOut({ status: "logged_out", email: config.email || null });
   } else {

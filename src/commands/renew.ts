@@ -22,7 +22,6 @@ export async function renew(
   }
 
   if (!skipConfirm(options)) {
-    blank();
     const ok = await clackConfirm({
       message: `Renew ${pc.bold(domain)} for ${years} year${years > 1 ? "s" : ""}? You will be charged.`,
     });
@@ -43,7 +42,7 @@ export async function renew(
 
   if (!res.ok) {
     s.stop("Renewal failed");
-    fail(data.error || data.message, { hint: data.hint, fixUrl: data.setup_url, status: res.status, json: options.json, fields: options.fields });
+    fail(data.error || data.message, { hint: data.hint, fixUrl: data.setup_url || data.payment_options?.card?.setup_url, status: res.status, json: options.json, fields: options.fields });
   }
 
   s.stop(`${S.success} Domain renewed`);

@@ -11,12 +11,12 @@ Register domains, manage DNS, create mailboxes, send and receive email. From you
 
 domani gives you one account and multiple ways in:
 
-- **[Web](https://domani.run)** -Dashboard with a full inbox (compose, reply, threads), DNS editor, domain management
-- **CLI** -This package. Everything the web app does, from your terminal
-- **[MCP Server](https://domani.run/mcp)** -65 tools for Claude Code, Cursor, Windsurf, and any MCP-compatible agent
-- **[OpenClaw](https://openclaw.com)** -`clawhub install domani`
-- **[Agent Skill](https://domani.run/SKILL.md)** -Step-by-step guide your agent can follow. Install with `npx skills add domani.run`
-- **[REST API](https://domani.run/docs)** -Direct HTTP access to everything
+- **[Web](https://domani.run)** - Dashboard with a full inbox (compose, reply, threads), DNS editor, domain management
+- **CLI** - This package. Everything the web app does, from your terminal
+- **[MCP Server](https://domani.run/mcp)** - 65 tools for Claude Code, Cursor, Windsurf, and any MCP-compatible agent
+- **[OpenClaw](https://openclaw.com)** - `clawhub install domani`
+- **[Agent Skill](https://domani.run/SKILL.md)** - Step-by-step guide your agent can follow. Install with `npx skills add domani.run`
+- **[REST API](https://domani.run/docs)** - Direct HTTP access to everything
 
 All interfaces share the same API key and the same data.
 
@@ -200,7 +200,7 @@ domani list | jq '.domains[].domain'
 | `--dry-run` | Preview mutations without executing |
 | `--yes` | Skip confirmation prompts |
 
-**Input hardening**: All inputs are validated against path traversal, control characters, query strings, and double encoding -common agent hallucinations.
+**Input hardening**: All inputs are validated against path traversal, control characters, query strings, and double encoding - common agent hallucinations.
 
 **Schema introspection**: Run `domani schema <command> --json` to get parameter types, constraints, and enums before constructing a command.
 

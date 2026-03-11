@@ -1,7 +1,7 @@
 import { apiRequest } from "../api.js";
 import pc from "picocolors";
 import { select, text, isCancel } from "@clack/prompts";
-import { S, fmt, heading, row, blank, hint, hintCommand, padCell, createSpinner, sleep, jsonOut, dryRunOut, fail } from "../ui.js";
+import { S, fmt, heading, row, blank, hint, padCell, createSpinner, sleep, jsonOut, dryRunOut, fail } from "../ui.js";
 import { requireValidDomain } from "../validate.js";
 import { pickDomain } from "../prompt.js";
 

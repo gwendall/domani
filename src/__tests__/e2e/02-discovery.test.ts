@@ -127,7 +127,7 @@ describe("discovery workflow", () => {
       if (skipIfNoAuth(t)) return;
       // suggest can be very slow (AI generation + availability checks)
       const result = run(["suggest", "AI coding tool", "--count", "3"], { timeout: 60_000, expectError: true });
-      if (result.exitCode !== 0) return; // timeout or server error — skip gracefully
+      if (result.exitCode !== 0) return; // timeout or server error - skip gracefully
       assertField(result.data, "suggestions");
       const suggestions = assertArray(result.data, "suggestions");
       assert.ok(suggestions.length > 0, "Expected at least one suggestion");

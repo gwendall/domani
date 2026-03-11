@@ -14,7 +14,7 @@ interface Domain {
  * Exits if user cancels or has no domains.
  */
 export async function pickDomain(): Promise<string> {
-  // Non-TTY: can't show interactive prompt — fail with actionable error
+  // Non-TTY: can't show interactive prompt - fail with actionable error
   if (!isTTY) {
     fail("Missing required argument: domain", {
       hint: "Pass the domain as an argument, e.g. 'domani settings example.com'",

@@ -137,4 +137,6 @@ async function setNameservers(
   blank();
   console.log(`  ${pc.dim("Changes may take up to 48 hours to propagate.")}`);
   blank();
+  hintCommand("Check propagation:", `domani status ${domain}`);
+  blank();
 }

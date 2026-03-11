@@ -33,6 +33,7 @@ import { nameservers } from "./commands/nameservers.js";
 import { update } from "./commands/update.js";
 import { uninstall } from "./commands/uninstall.js";
 import { schema } from "./commands/schema.js";
+import { cardList, cardAdd, cardRemove } from "./commands/card.js";
 const program = new Command();
 
 program
@@ -40,6 +41,19 @@ program
   .description(`Domain names for developers and AI agents - ${APP_DOMAIN}`)
   .version(CLI_VERSION)
   .option("--api-url <url>", "Override API base URL")
+  .configureOutput({
+    outputError: (str, write) => {
+      // Strip Commander's "error: " prefix, we'll reformat it
+      const msg = str.replace(/^error:\s*/i, "").trimEnd();
+      write(`${pc.red("✗")} ${msg}\n`);
+      // Suggest help for unknown option / missing argument errors
+      if (/unknown option|missing required|expected argument/i.test(msg)) {
+        const sub = process.argv[2];
+        const helpCmd = sub && !sub.startsWith("-") ? `domani ${sub} --help` : "domani --help";
+        write(`${pc.dim(`  Run \`${helpCmd}\` to see available options.`)}\n`);
+      }
+    },
+  })
   .hook("preAction", (thisCommand, actionCommand) => {
     const opts = thisCommand.opts();
     if (opts.apiUrl) setApiUrlOverride(opts.apiUrl);
@@ -87,8 +101,21 @@ program
   .action(invoices);
 
 program
-  .command("billing")
-  .description("Add or update payment method (opens browser)")
+  .command("card [action]")
+  .description("Manage payment methods (list, add, remove)")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .option("--yes", "Skip confirmation prompt (for remove)")
+  .action(async (action, options) => {
+    if (!action || action === "list") return cardList(options);
+    if (action === "add") return cardAdd(options);
+    if (action === "remove") return cardRemove(options);
+    fail(`Unknown action: ${action}`, { hint: "Use: domani card list, domani card add, or domani card remove" });
+  });
+
+// Hidden alias for backwards compatibility
+program
+  .command("billing", { hidden: true })
   .option("--json", "Output as JSON (returns checkout URL)")
   .action(billing);
 
@@ -230,6 +257,7 @@ program
   .option("--cc <emails>", "CC recipients, comma-separated (for send)")
   .option("--bcc <emails>", "BCC recipients, comma-separated (for send)")
   .option("--subject <s>", "Email subject (for send)")
+  .option("--title <s>", "Email subject (alias for --subject)")
   .option("--text <t>", "Email body text (for send)")
   .option("--body <t>", "Email body text (alias for --text)")
   .option("--in-reply-to <message-id>", "Message-ID of email being replied to (for threading)")
@@ -258,6 +286,7 @@ program
 
 program
   .command("nameservers [domain] [ns...]")
+  .alias("ns")
   .description("Get or set nameservers (--reset for defaults)")
   .option("--set <ns>", "Comma-separated nameservers to set")
   .option("--reset", "Reset to registrar default nameservers")
@@ -320,6 +349,7 @@ program
 
 program
   .command("analytics [domain]")
+  .alias("stats")
   .description("View parking analytics (views, inquiries, conversion)")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
@@ -338,6 +368,39 @@ program
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
   .action(webhooks);
+
+// ── Email shortcuts ───────────────────────────────────
+
+program
+  .command("send [arg2]")
+  .description("Send an email — shortcut for: domani email send")
+  .option("--from <email>", "Sender address user@domain")
+  .option("--to <email>", "Recipient email address")
+  .option("--cc <emails>", "CC recipients, comma-separated")
+  .option("--bcc <emails>", "BCC recipients, comma-separated")
+  .option("--subject <s>", "Email subject")
+  .option("--title <s>", "Email subject (alias for --subject)")
+  .option("--text <t>", "Email body text")
+  .option("--body <t>", "Email body text (alias for --text)")
+  .option("--in-reply-to <message-id>", "Message-ID of email being replied to")
+  .option("--references <message-ids>", "Space-separated Message-ID chain")
+  .option("--domain <domain>", "Domain name")
+  .option("--slug <slug>", "Mailbox slug")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .action((arg2, options) => email("send", arg2, options));
+
+program
+  .command("inbox [arg2]")
+  .description("View email inbox — shortcut for: domani email inbox")
+  .option("--from <email>", "Sender address user@domain")
+  .option("--domain <domain>", "Domain name")
+  .option("--slug <slug>", "Mailbox slug")
+  .option("--direction <dir>", "Filter messages: in or out")
+  .option("--limit <n>", "Limit results")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .action((arg2, options) => email("inbox", arg2, options));
 
 // ── Introspection ──────────────────────────────────────
 

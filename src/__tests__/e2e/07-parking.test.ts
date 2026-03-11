@@ -35,7 +35,7 @@ describe("parking & analytics workflow", () => {
       // Enable (may fail with 409 if DNS conflict)
       const enableResult = run(["parking", TEST_DOMAIN, "enable", "--yes"], { expectError: true });
       if (enableResult.exitCode !== 0) {
-        // DNS conflict or already enabled — skip the rest
+        // DNS conflict or already enabled - skip the rest
         return;
       }
 

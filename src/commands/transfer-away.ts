@@ -51,6 +51,12 @@ export async function transferAway(
   blank();
   if (data.status === "none") {
     hintCommand("Get auth code to start:", `domani auth-code ${domain}`);
+  } else if (data.status === "pending" || data.status === "approved") {
+    hintCommand("Check again later:", `domani transfer-away ${domain}`);
+  } else if (data.status === "completed") {
+    hintCommand("Search for a new domain:", `domani search <name>`);
+  } else if (data.status === "rejected" || data.status === "expired") {
+    hintCommand("Retry with a new auth code:", `domani auth-code ${domain}`);
   }
   blank();
 }

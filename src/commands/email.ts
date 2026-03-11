@@ -49,6 +49,7 @@ interface EmailOptions {
   cc?: string;
   bcc?: string;
   subject?: string;
+  title?: string;
   text?: string;
   url?: string;
   forwardTo?: string;
@@ -106,8 +107,9 @@ export async function email(
   // Parse user@domain shorthand from arg2 (e.g. `domani email create hello@example.com`)
   parseEmailArg(arg2, options);
 
-  // --body is alias for --text
+  // --body is alias for --text, --title is alias for --subject
   if (options.body && !options.text) options.text = options.body;
+  if (options.title && !options.subject) options.subject = options.title;
   // --from user@domain is alias for --domain + --slug
   if (options.from && options.from.includes("@")) {
     const [slug, domain] = options.from.split("@", 2);
@@ -342,18 +344,12 @@ async function createMailboxCli(options: EmailOptions): Promise<void> {
     fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
   }
 
-  s.stop(`${S.success} Mailbox created`);
+  s.stop(`${S.success} ${pc.cyan(data.address)} ready`);
 
   if (options.json) {
     jsonOut(data, options.fields);
     return;
   }
-
-  heading("Mailbox Created");
-  row("Address", pc.cyan(data.address));
-  row("Domain", data.domain);
-  if (data.webhook_url) row("Webhook", fmt.url(data.webhook_url));
-  blank();
 }
 
 // ── Delete mailbox ────────────────────────────────
@@ -433,19 +429,13 @@ async function sendEmailCli(options: EmailOptions): Promise<void> {
     fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
   }
 
-  s.stop(`${S.success} Email sent`);
+  const toStr = Array.isArray(data.to) ? data.to.join(", ") : data.to;
+  s.stop(`${S.success} Sent to ${pc.cyan(toStr)}`);
 
   if (options.json) {
     jsonOut(data, options.fields);
     return;
   }
-
-  heading("Email Sent");
-  row("From", data.from);
-  row("To", data.to);
-  if (data.subject) row("Subject", data.subject);
-  row("Status", pc.green(data.status));
-  blank();
 }
 
 // ── List messages ─────────────────────────────────
@@ -475,34 +465,38 @@ async function messagesCli(options: EmailOptions): Promise<void> {
   }
 
   const msgs = data.messages || [];
-  s.stop(`${S.success} ${msgs.length} message(s)`);
 
   if (options.json) {
+    s.stop(`${S.success} ${msgs.length} message(s)`);
     jsonOut(data, options.fields);
     return;
   }
 
   if (msgs.length === 0) {
-    blank();
-    console.log(`  ${pc.dim("No messages.")}`);
-    blank();
+    s.stop(`${pc.dim("No messages")}`);
     return;
   }
 
-  blank();
-  heading(`Messages ${options.slug}@${domain}`);
-  const rows = msgs.map((m: { direction: string; from: string; to: string; subject: string | null; created_at: string }) => [
-    m.direction === "in" ? pc.green("in") : pc.blue("out"),
-    m.direction === "in" ? m.from : m.to,
-    m.subject ? (m.subject.length > 30 ? m.subject.slice(0, 30) + "..." : m.subject) : pc.dim("(no subject)"),
-    pc.dim(new Date(m.created_at).toLocaleString()),
-  ]);
-  table(["Dir", "From/To", "Subject", "Date"], rows, [5, 28, 34, 22]);
-  if (data.next_cursor) {
-    blank();
-    hint(`More messages available. Use --limit to paginate.`);
+  const plural = msgs.length > 1 ? "s" : "";
+  s.stop(`${S.success} ${pc.cyan(`${options.slug}@${domain}`)} ${pc.dim("· " + msgs.length + " message" + plural)}`);
+
+  for (const m of msgs as { direction: string; from: string; to: string; subject: string | null; text: string | null; created_at: string }[]) {
+    const dir = m.direction === "in" ? pc.green("in ") : pc.dim("out");
+    const contact = m.direction === "in" ? m.from : m.to;
+    const rawSubject = m.subject || "(no subject)";
+    const date = pc.dim(new Date(m.created_at).toLocaleString());
+    let titlePart = rawSubject;
+    if (m.text) {
+      const preview = m.text.replace(/\s+/g, " ").trim();
+      const snippet = preview.length > 60 ? preview.slice(0, 60) + "…" : preview;
+      titlePart = `${rawSubject} ${pc.dim("— " + snippet)}`;
+    }
+    console.log(`  ${dir}  ${contact.padEnd(30)} ${titlePart}  ${date}`);
   }
-  blank();
+
+  if (data.next_cursor) {
+    console.log(`  ${pc.dim("… more available, use --limit to paginate")}`);
+  }
 }
 
 // ── Set webhook ──────────────────────────────────

@@ -112,13 +112,13 @@ export async function suggest(
   // Parse SSE stream - collect results, print at end (available first, then taken)
   const decoder = new TextDecoder();
   let buffer = "";
+  let currentEvent = "";
 
   for await (const chunk of body as AsyncIterable<Uint8Array>) {
     buffer += decoder.decode(chunk, { stream: true });
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
 
-    let currentEvent = "";
     for (const line of lines) {
       if (line.startsWith("event: ")) {
         currentEvent = line.slice(7);

@@ -1,6 +1,6 @@
 import { apiRequest } from "../api.js";
 import pc from "picocolors";
-import { S, heading, row, blank, jsonOut, fail } from "../ui.js";
+import { S, heading, blank, jsonOut, fail } from "../ui.js";
 
 export async function invoices(options: { json?: boolean; fields?: string; limit?: string }): Promise<void> {
   const limit = options.limit ? Number(options.limit) : 20;

@@ -1,6 +1,6 @@
 import { apiRequest } from "../api.js";
 import pc from "picocolors";
-import { fmt, heading, row, blank, table, createSpinner, jsonOut, fail } from "../ui.js";
+import { fmt, heading, row, blank, hintCommand, table, createSpinner, jsonOut, fail } from "../ui.js";
 import { requireValidDomain } from "../validate.js";
 import { pickDomain } from "../prompt.js";
 
@@ -70,5 +70,9 @@ export async function analytics(
     table(["Email", "Offer", "Date"], rows, [30, 12, 14]);
   }
 
+  blank();
+  hintCommand("Set a listing price:", `domani parking ${domain} price <amount>`);
+  hintCommand("Set up email:", `domani email setup ${domain}`);
+  hintCommand("Domain settings:", `domani settings ${domain}`);
   blank();
 }

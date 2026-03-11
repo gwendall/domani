@@ -2,7 +2,6 @@ import { getApiUrl, requireToken, getToken, CLI_VERSION } from "./config.js";
 
 /** Wrap response so .json() never throws on non-JSON bodies */
 function safeResponse(res: Response): Response {
-  const originalJson = res.json.bind(res);
   res.json = async () => {
     const text = await res.clone().text();
     try {

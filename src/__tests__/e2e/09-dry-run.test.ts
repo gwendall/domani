@@ -12,7 +12,7 @@ describe("dry-run commands", () => {
       assertField(data, "domain");
       assertField(data, "price");
     }
-    // If exit != 0, domain was unavailable — that's fine
+    // If exit != 0, domain was unavailable - that's fine
   });
 
   it("dns set --dry-run", (t) => {
@@ -170,6 +170,6 @@ describe("dry-run commands", () => {
       assertField(data, "price");
       assert.equal(data.eligible, true);
     }
-    // If exit != 0, domain was not eligible — that's expected for most domains
+    // If exit != 0, domain was not eligible - that's expected for most domains
   });
 });

@@ -51,7 +51,6 @@ export async function status(
   requireValidDomain(domain, options);
   // JSON mode: regular request, no streaming
   if (options.json) {
-    const s = createSpinner(false);
     const res = await apiRequest(`/api/domains/${encodeURIComponent(domain)}/status`);
     const data = await res.json();
     if (!res.ok) {
@@ -97,6 +96,7 @@ export async function status(
   let pt: ReturnType<typeof createProgressTable> | null = null;
   let records: DnsRecord[] = [];
   let spinnerStopped = false;
+  let currentEvent = "";
 
   try {
     for await (const chunk of body as AsyncIterable<Uint8Array>) {
@@ -104,7 +104,6 @@ export async function status(
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
 
-      let currentEvent = "";
       for (const line of lines) {
         if (line.startsWith("event: ")) {
           currentEvent = line.slice(7);

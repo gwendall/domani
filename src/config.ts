@@ -3,7 +3,7 @@ import path from "path";
 import os from "os";
 import { APP_URL } from "./brand.js";
 
-const CONFIG_DIR = path.join(os.homedir(), ".domani");
+const CONFIG_DIR = process.env.DOMANI_CONFIG_DIR || path.join(os.homedir(), ".domani");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 
 // Allow --api-url global override

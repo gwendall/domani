@@ -1,6 +1,6 @@
 import { getApiUrl, saveConfig, getConfig } from "../config.js";
 import pc from "picocolors";
-import { S, fmt, blank, hintCommand, errorMessage, createSpinner, openUrl, jsonOut, fail } from "../ui.js";
+import { S, fmt, blank, hintCommand, createSpinner, openUrl, jsonOut, fail } from "../ui.js";
 
 export async function login(options: { json?: boolean }): Promise<void> {
   const apiUrl = getApiUrl();

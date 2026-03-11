@@ -96,7 +96,6 @@ export function createSpinner(enabled = true): Spinner {
 
 // ── Table ──────────────────────────────────────────────
 
-// eslint-disable-next-line no-control-regex
 const ANSI_RE = /\x1b\]8;;[^\x1b]*\x1b\\|\x1b\[[0-9;]*m/g;
 function stripAnsi(s: string): string {
   return s.replace(ANSI_RE, "");
@@ -212,7 +211,7 @@ export function dryRunOut(
     return;
   }
   console.log();
-  console.log(`  ${pc.yellow("▸ DRY RUN")} ${pc.dim("— no changes made")}`);
+  console.log(`  ${pc.yellow("▸ DRY RUN")} ${pc.dim("- no changes made")}`);
   console.log(`  ${pc.dim("Action:")} ${pc.bold(action)}`);
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === null) continue;
@@ -244,13 +243,13 @@ interface FailOptions {
 
 const FIX_COMMANDS: Record<string, string> = {
   auth_required: "domani login",
-  payment_required: "domani billing",
+  payment_required: "domani card add",
   contact_required: "domani contact set",
 };
 
 function inferCode(msg: string, status?: number, fixUrl?: string): string {
   if (status === 401 || status === 403) return "auth_required";
-  if (fixUrl) return "payment_required";
+  if (status === 402 || fixUrl) return "payment_required";
   if (status === 404) return "not_found";
   if (status === 409) return "conflict";
   if (status === 422) return "validation_error";
@@ -271,12 +270,12 @@ export function fail(msg: string | undefined, opts?: FailOptions): never {
     if (opts.fixUrl) out.fix_url = opts.fixUrl;
     jsonOut(out, opts.fields);
   } else {
-    let hintText = opts?.hint;
-    if (opts?.fixUrl) {
-      const urlHint = `Add a payment method at ${opts.fixUrl}`;
-      hintText = hintText ? `${hintText}\n    ${formatHint(urlHint)}` : urlHint;
+    errorMessage(resolvedMsg, opts?.hint);
+    if (fixCommand) {
+      console.error(`    ${pc.dim("Or run:")} ${pc.cyan(fixCommand)}`);
+    } else if (opts?.fixUrl) {
+      console.error(`    ${formatHint(`Add a payment method at ${opts.fixUrl}`)}`);
     }
-    errorMessage(resolvedMsg, hintText);
   }
   process.exit(1);
 }
@@ -319,7 +318,7 @@ export function createProgressTable(
   if (!enabled) {
     return {
       start() {},
-      markDone(_i: number, _icon?: string) {},
+      markDone() {},
       stop() {},
     };
   }

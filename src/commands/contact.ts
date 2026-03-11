@@ -1,7 +1,7 @@
 import { apiRequest } from "../api.js";
 import { text, isCancel } from "@clack/prompts";
 import pc from "picocolors";
-import { S, heading, row, blank, createSpinner, jsonOut, dryRunOut, fail, isTTY } from "../ui.js";
+import { S, heading, row, blank, hintCommand, createSpinner, jsonOut, dryRunOut, fail, isTTY } from "../ui.js";
 
 export async function contact(
   action: string | undefined,
@@ -172,5 +172,7 @@ async function contactSet(options: {
   row("Country", saved.country);
   row("Phone", saved.phone);
   row("Email", saved.email);
+  blank();
+  hintCommand("Search for a domain:", `domani search <name>`);
   blank();
 }

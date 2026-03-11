@@ -41,7 +41,7 @@ export async function update(options?: { json?: boolean }): Promise<void> {
 
     if (options?.json) {
       s.stop("");
-      // In JSON mode, just report versions — don't auto-update
+      // In JSON mode, just report versions - don't auto-update
       jsonOut({ current: CLI_VERSION, latest, up_to_date: false, hint: "Run `domani update` to upgrade." });
       return;
     }
