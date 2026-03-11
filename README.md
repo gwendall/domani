@@ -95,7 +95,7 @@ domani schema buy --json
 ```bash
 domani search <name> [tlds...]    # Check availability across TLDs (--expand for 30+)
 domani suggest <prompt>           # AI-powered domain suggestions (--style, --lang, --tlds)
-domani buy <domains...>           # Purchase one or more domains (card or USDC)
+domani buy <domains...>           # Purchase one or more domains
 domani transfer <domain>          # Transfer from another registrar
 domani renew <domain>             # Renew a domain (--years 1-10)
 domani import <domain>            # Import a domain you own elsewhere (DNS monitoring only)
@@ -206,14 +206,11 @@ domani list | jq '.domains[].domain'
 
 ## Payments
 
-Supports both card and USDC (Base / Ethereum). The CLI auto-detects which method the user has set up.
+Domains are charged to your saved card. Add one at [domani.run/dashboard](https://domani.run/dashboard) or with `domani card add`.
 
 ```bash
-domani buy myapp.dev                     # Uses saved card
-domani buy myapp.dev --payment usdc      # Pay with USDC
+domani buy myapp.dev                     # Charged to saved card
 ```
-
-[x402](https://www.x402.org/) protocol support lets agents pay autonomously without human approval.
 
 ## Authentication
 
