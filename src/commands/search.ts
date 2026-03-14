@@ -423,7 +423,7 @@ export async function search(
       s.stop(`${S.info} ${fmt.domain(data.domain)} ${S.dot} ${pc.cyan("for sale")} ${S.dot} ${fmt.price(data.for_sale.price)}`);
       if (isTTY && !options.json) {
         const { buy } = await import("./buy.js");
-        await buy([data.domain], { preChecked: { price: data.for_sale.price, currency: data.for_sale.currency } });
+        await buy([data.domain], { preChecked: { price: data.for_sale.price, currency: data.for_sale.currency, marketplace: true } });
       } else {
         blank();
         hintCommand("Buy it:", `domani buy ${data.domain}`);
