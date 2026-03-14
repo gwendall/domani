@@ -4,12 +4,22 @@ import pc from "picocolors";
 import { S, fmt, blank, hintCommand, createSpinner, jsonOut, fail, isTTY } from "../ui.js";
 import { requireValidDomain, requireValidTlds } from "../validate.js";
 
+interface ForSaleInfo {
+  price: number;
+  currency: string;
+  source: string;
+  buyable: boolean;
+  url?: string;
+}
+
 interface SearchResult {
   domain: string;
   available: boolean;
   price: number;
   currency: string;
   error?: boolean;
+  /** Domain is listed for sale (marketplace or external) */
+  for_sale?: ForSaleInfo;
 }
 
 const BATCH_SIZE = 10;
@@ -156,7 +166,9 @@ async function liveSelectSearch(
         const dot = sel ? pc.green("●") : pc.dim("○");
         const padded = item.domain.padEnd(maxLen);
         const domain = sel ? pc.bold(pc.cyan(padded)) : padded;
-        const price = pc.dim(`$${item.price}/yr`);
+        const price = item.for_sale
+          ? pc.cyan(`$${item.for_sale.price} (for sale)`)
+          : pc.dim(`$${item.price}/yr`);
         lines.push(`${pc.dim("│")}  ${dot} ${domain}  ${price}`);
       }
     }
@@ -245,7 +257,7 @@ async function liveSelectSearch(
         } else if (line.startsWith("data: ")) {
           const data = JSON.parse(line.slice(6));
           if (currentEvent === "result") lastChecked = data.domain;
-          if (currentEvent === "result" && (data.available || showAll)) {
+          if (currentEvent === "result" && (data.available || data.for_sale || showAll)) {
             if (batchIndex === 0) {
               const insertAt = items.findIndex((i) => i.price > data.price);
               if (insertAt === -1) {
@@ -341,7 +353,7 @@ async function liveSelectSearch(
 export async function search(
   domain: string | undefined,
   tldArgs: string[],
-  options: { tlds?: string; maxPrice?: string; all?: boolean; expand?: boolean; json?: boolean; fields?: string }
+  options: { tlds?: string; maxPrice?: string; source?: string; all?: boolean; expand?: boolean; json?: boolean; fields?: string }
 ): Promise<void> {
   if (!domain) {
     if (!isTTY) {
@@ -406,6 +418,17 @@ export async function search(
         hintCommand("Register it:", `domani buy ${data.domain}`);
         blank();
       }
+    } else if (data.for_sale?.buyable) {
+      // Domain is taken but listed for sale — can be purchased via buy
+      s.stop(`${S.info} ${fmt.domain(data.domain)} ${S.dot} ${pc.cyan("for sale")} ${S.dot} ${fmt.price(data.for_sale.price)}`);
+      if (isTTY && !options.json) {
+        const { buy } = await import("./buy.js");
+        await buy([data.domain], { preChecked: { price: data.for_sale.price, currency: data.for_sale.currency } });
+      } else {
+        blank();
+        hintCommand("Buy it:", `domani buy ${data.domain}`);
+        blank();
+      }
     } else if (data.error) {
       s.stop(`${pc.dim("?")} ${fmt.domain(data.domain)} ${S.dot} ${pc.dim("lookup failed")}`);
     } else {
@@ -463,9 +486,12 @@ export async function search(
     const available = allResults.filter((r) => r.available);
     const taken = allResults.filter((r) => !r.available && !r.error);
 
-    for (const r of [...available, ...taken]) {
+    const listed = allResults.filter((r) => !r.available && r.for_sale);
+    for (const r of [...available, ...listed, ...taken.filter((r) => !r.for_sale)]) {
       if (r.available) {
         console.log(`  ${pc.green("✓")} ${pc.bold(pc.white(r.domain.padEnd(col)))} ${pc.green(fmt.price(r.price) + "/yr")}`);
+      } else if (r.for_sale) {
+        console.log(`  ${pc.cyan("$")} ${pc.bold(pc.white(r.domain.padEnd(col)))} ${pc.cyan(fmt.price(r.for_sale.price))} ${pc.dim("(for sale)")}`);
       } else {
         console.log(`  ${pc.dim("✗")} ${pc.dim(r.domain.padEnd(col))} ${pc.dim("taken")}`);
       }
@@ -596,6 +622,8 @@ export async function search(
     printHeader();
     if (r.available) {
       console.log(`  ${S.success} ${fmt.domain(r.domain).padEnd(37)} ${fmt.price(r.price)}${pc.dim("/yr")}`);
+    } else if (r.for_sale) {
+      console.log(`  ${S.info} ${fmt.domain(r.domain).padEnd(37)} ${pc.cyan(fmt.price(r.for_sale.price))} ${pc.dim("(for sale)")}`);
     } else if (r.error) {
       // skip — TLD lookup failed, don't show as taken
     } else {
@@ -625,7 +653,7 @@ export async function search(
         const data = JSON.parse(line.slice(6));
         if (currentEvent === "result") {
           received++;
-          if (data.available || showAll) {
+          if (data.available || data.for_sale || showAll) {
             if (!options.json) printResult(data);
             results.push(data);
           } else if (!options.json) {

@@ -25,6 +25,8 @@ import { authCode } from "./commands/auth-code.js";
 import { transferAway } from "./commands/transfer-away.js";
 import { contact } from "./commands/contact.js";
 import { parking } from "./commands/parking.js";
+import { sell } from "./commands/sell.js";
+import { unsell } from "./commands/unsell.js";
 import { analytics } from "./commands/analytics.js";
 import { webhooks } from "./commands/webhooks.js";
 import { invoices } from "./commands/invoices.js";
@@ -143,6 +145,7 @@ program
   .description("Check availability - domani search myapp .io .fm .xyz")
   .option("--tlds <tlds>", "Comma-separated TLDs (e.g. com,io,dev)")
   .option("--max-price <price>", "Maximum price filter")
+  .option("--source <source>", "Filter: all (default), primary (registration only), secondary (for-sale listings only)")
   .option("--all", "Show taken domains too")
   .option("--expand", "Check 30+ TLDs including creative/exotic extensions")
   .option("--json", "Output as JSON")
@@ -346,6 +349,24 @@ program
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
   .action(parking);
+
+program
+  .command("sell [domain]")
+  .description("List a domain for sale on the marketplace")
+  .option("--price <amount>", "Sale price in USD")
+  .option("--description <text>", "Listing description")
+  .option("--dry-run", "Show what would happen without executing")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .action(sell);
+
+program
+  .command("unsell [domain]")
+  .description("Remove a domain from the marketplace")
+  .option("--dry-run", "Show what would happen without executing")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .action(unsell);
 
 program
   .command("analytics [domain]")
