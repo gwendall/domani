@@ -1,4 +1,5 @@
 import { getApiUrl, getToken, CLI_VERSION } from "./config.js";
+import { ensurePro } from "./auth.js";
 
 /** Wrap response so .json() never throws on non-JSON bodies */
 function safeResponse(res: Response): Response {
@@ -15,7 +16,8 @@ function safeResponse(res: Response): Response {
 
 export async function apiRequest(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  _retrying = false
 ): Promise<Response> {
   const token = getToken()!;
   const url = `${getApiUrl()}${path}`;
@@ -29,6 +31,19 @@ export async function apiRequest(
       ...options.headers,
     },
   });
+
+  // Inline upgrade flow — same pattern as ensureAuth
+  if (!_retrying) {
+    const text = await res.clone().text();
+    try {
+      const data = JSON.parse(text);
+      if (data.code === "UPGRADE_REQUIRED") {
+        await ensurePro();
+        return apiRequest(path, options, true);
+      }
+    } catch { /* not JSON, skip */ }
+  }
+
   return safeResponse(res);
 }
 

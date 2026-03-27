@@ -4,9 +4,74 @@ import { S, fmt, blank, createSpinner, openUrl } from "./ui.js";
 
 /** Memoized — resolves instantly on subsequent calls within the same process. */
 let _authEnsured = false;
+let _proEnsured = false;
 
 export function resetAuthCache(): void {
   _authEnsured = false;
+  _proEnsured = false;
+}
+
+/**
+ * Ensure the user is on Pro before proceeding.
+ *
+ * - If already Pro: instant no-op.
+ * - If TTY: opens billing page, polls until upgraded, continues.
+ * - If non-TTY: structured error exit.
+ */
+export async function ensurePro(): Promise<void> {
+  if (_proEnsured) return;
+
+  const isJson = process.argv.includes("--json") || !isTTY;
+  const apiUrl = getApiUrl();
+  const token = getToken();
+
+  // Check current plan
+  try {
+    const res = await fetch(`${apiUrl}/api/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.plan === "pro") { _proEnsured = true; return; }
+  } catch { /* proceed to upgrade flow */ }
+
+  if (isJson) {
+    console.log(JSON.stringify({
+      error: "Pro plan required",
+      code: "upgrade_required",
+      hint: "Upgrade at https://domani.run/settings",
+      fix_command: "domani upgrade",
+    }, null, 2));
+    process.exit(1);
+  }
+
+  blank();
+  console.log(`  ${pc.dim("This feature requires")} ${pc.bold("Pro")} ${pc.dim("($9/month).")}`);
+  console.log(`  ${pc.dim("Opening billing page")} ${S.arrow} ${pc.cyan("domani.run/settings")}`);
+  openUrl(`${apiUrl.replace("http://localhost:3000", "https://domani.run")}/settings`);
+  blank();
+
+  const s = createSpinner(true);
+  s.start("Waiting for upgrade...");
+
+  for (let i = 0; i < 120; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
+    try {
+      const res = await fetch(`${apiUrl}/api/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.plan === "pro") {
+        _proEnsured = true;
+        s.stop(`${S.success} Upgraded to Pro! Continuing...`);
+        blank();
+        return;
+      }
+    } catch { /* keep polling */ }
+  }
+
+  s.stop("Timed out");
+  console.error(`  ${pc.red("✗")} No upgrade detected. Visit ${pc.cyan("domani.run/settings")} to upgrade.`);
+  process.exit(1);
 }
 
 /**
