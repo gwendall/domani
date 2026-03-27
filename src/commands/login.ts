@@ -2,7 +2,7 @@ import { getApiUrl, saveConfig, getConfig } from "../config.js";
 import pc from "picocolors";
 import { S, fmt, blank, hintCommand, createSpinner, openUrl, jsonOut, fail } from "../ui.js";
 
-export async function login(options: { json?: boolean }): Promise<void> {
+export async function login(options: { json?: boolean; open?: boolean }): Promise<void> {
   const apiUrl = getApiUrl();
   const s = createSpinner(!options.json);
 
@@ -56,10 +56,13 @@ export async function login(options: { json?: boolean }): Promise<void> {
 
   blank();
   console.log(`  ${pc.dim("Verification code:")} ${pc.bold(pc.cyan(code))}`);
-  console.log(`  ${pc.dim("Opening browser")} ${S.arrow} ${fmt.url(auth_url)}`);
+  if (options.open !== false) {
+    console.log(`  ${pc.dim("Opening browser")} ${S.arrow} ${fmt.url(auth_url)}`);
+    openUrl(auth_url);
+  } else {
+    console.log(`  ${pc.dim("Open this URL to approve:")} ${fmt.url(auth_url)}`);
+  }
   blank();
-
-  openUrl(auth_url);
 
   s.start("Waiting for approval");
 

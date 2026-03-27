@@ -1,4 +1,5 @@
-import { getApiUrl, requireToken, getToken, CLI_VERSION } from "./config.js";
+import { getApiUrl, getToken, CLI_VERSION } from "./config.js";
+import { ensureAuth } from "./auth.js";
 
 /** Wrap response so .json() never throws on non-JSON bodies */
 function safeResponse(res: Response): Response {
@@ -17,7 +18,8 @@ export async function apiRequest(
   path: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const token = requireToken();
+  await ensureAuth();
+  const token = getToken()!;
   const url = `${getApiUrl()}${path}`;
 
   const res = await fetch(url, {

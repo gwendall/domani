@@ -47,7 +47,7 @@ export async function cardList(options: { json?: boolean; fields?: string }): Pr
   blank();
 }
 
-export async function cardAdd(options?: { json?: boolean }): Promise<void> {
+export async function cardAdd(options?: { json?: boolean; fields?: string }): Promise<void> {
   const s = createSpinner(!options?.json);
   s.start("Setting up payment session");
 
@@ -71,7 +71,7 @@ export async function cardAdd(options?: { json?: boolean }): Promise<void> {
   s.stop("Checkout ready");
 
   if (options?.json) {
-    jsonOut({ url: data.url });
+    jsonOut({ url: data.url }, options?.fields);
     return;
   }
 
@@ -86,12 +86,12 @@ export async function cardAdd(options?: { json?: boolean }): Promise<void> {
   blank();
 }
 
-export async function cardRemove(options?: { json?: boolean; yes?: boolean }): Promise<void> {
+export async function cardRemove(options?: { json?: boolean; yes?: boolean; fields?: string }): Promise<void> {
   if (!options?.yes && !options?.json) {
     const ok = await confirm({ message: "Remove your saved payment method?" });
     if (isCancel(ok) || !ok) {
       console.log(`  ${pc.dim("Cancelled.")}`);
-      process.exit(0);
+      return;
     }
   }
 
@@ -109,7 +109,7 @@ export async function cardRemove(options?: { json?: boolean; yes?: boolean }): P
   s.stop(`${S.success} Payment method removed`);
 
   if (options?.json) {
-    jsonOut({ removed: true });
+    jsonOut({ removed: true }, options?.fields);
     return;
   }
 

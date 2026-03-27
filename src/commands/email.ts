@@ -1,6 +1,7 @@
 import { apiRequest } from "../api.js";
+import { APP_URL } from "../brand.js";
 import pc from "picocolors";
-import { select, isCancel } from "@clack/prompts";
+import { select, confirm, text, isCancel } from "@clack/prompts";
 import {
   S,
   fmt,
@@ -280,10 +281,8 @@ async function listMailboxesCli(options: EmailOptions): Promise<void> {
   const s = createSpinner(!options.json);
   s.start("Loading mailboxes");
 
-  const path = options.domain
-    ? `/api/domains/${encodeURIComponent(options.domain)}/email`
-    : "/api/email";
-  const res = await apiRequest(path);
+  const params = options.domain ? `?domain=${encodeURIComponent(options.domain)}` : "";
+  const res = await apiRequest(`/api/emails${params}`);
   const data = await res.json();
 
   if (!res.ok) {
@@ -327,29 +326,115 @@ async function createMailboxCli(options: EmailOptions): Promise<void> {
   if (options.dryRun) {
     return dryRunOut("email_create_mailbox", { domain, slug: options.slug }, options.json, options.fields);
   }
+
+  let slug = options.slug;
+  if (!slug && !options.json) {
+    const input = await text({ message: `Email handle for @${domain}:`, placeholder: "hello" });
+    if (isCancel(input)) process.exit(0);
+    slug = input as string;
+  }
+  if (!slug) {
+    fail("Slug required", { hint: `Usage: domani email create hello@${domain}`, code: "validation_error", json: options.json, fields: options.fields });
+  }
+  const address = `${slug}@${domain}`;
+
   const s = createSpinner(!options.json);
   s.start("Creating mailbox");
 
-  const body: Record<string, string> = {};
-  if (options.slug) body.slug = options.slug;
-
-  const res = await apiRequest(`/api/domains/${encodeURIComponent(domain)}/email`, {
+  let res = await apiRequest(`/api/emails`, {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ address }),
   });
-  const data = await res.json();
+  let data = await res.json();
+
+  // Domain not in account → show records + auto-poll by retrying same request
+  if (res.status === 202 && !options.json) {
+    s.stop("");
+
+    const txtRecord = data.txt_record;
+    const emailRecords: { type: string; name: string; value: string; priority?: number }[] = data.email_records || [];
+    const allRecords = [
+      { type: "TXT", name: txtRecord?.name || "@", value: txtRecord?.value || "", note: "ownership proof" },
+      ...emailRecords.map((r: { type: string; name: string; value: string; priority?: number }) => ({ ...r, note: "" })),
+    ];
+
+    blank();
+    console.log(`  Add these records at your DNS provider:`);
+    blank();
+    const colW = [6, 20, 52, 16];
+    console.log(`  ${pc.dim("Type".padEnd(colW[0]))}  ${pc.dim("Name".padEnd(colW[1]))}  ${pc.dim("Value".padEnd(colW[2]))}  ${pc.dim("Note")}`);
+    for (const r of allRecords) {
+      const val = r.value.length > colW[2] ? r.value.slice(0, colW[2] - 3) + "..." : r.value;
+      const pri = "priority" in r && r.priority !== undefined ? pc.dim(` pri=${r.priority}`) : "";
+      console.log(`  ${pc.yellow(r.type.padEnd(colW[0]))}  ${r.name.padEnd(colW[1])}  ${pc.cyan(val)}${pri}  ${r.note ? pc.dim(r.note) : ""}`);
+    }
+    blank();
+    hint("DNS propagation typically takes 5–30 minutes. Checking automatically...");
+    blank();
+
+    // Poll: retry same POST /api/emails until 201
+    const pollSpinner = createSpinner(true);
+    pollSpinner.start("Waiting for DNS propagation");
+    let attempts = 0;
+    while (res.status === 202 && attempts < 60) {
+      await sleep(15000);
+      attempts++;
+      res = await apiRequest(`/api/emails`, { method: "POST", body: JSON.stringify({ address }) });
+      data = await res.json();
+      if (res.status !== 202 && !res.ok) {
+        pollSpinner.stop("Failed");
+        fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+      }
+      pollSpinner.start(`Waiting for DNS... (${Math.round(attempts * 15 / 60)}m)`);
+    }
+    if (res.status === 202) {
+      pollSpinner.stop("");
+      fail("DNS records not detected after 15 minutes.", {
+        hint: `Check records are set correctly, then retry: domani email create ${address}`,
+        code: "timeout",
+        json: options.json,
+        fields: options.fields,
+      });
+    }
+    pollSpinner.stop(`${S.success} DNS verified`);
+    blank();
+  }
 
   if (!res.ok) {
     s.stop("Failed");
     fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
   }
 
-  s.stop(`${S.success} ${pc.cyan(data.address)} ready`);
+  s.stop(`${S.success} ${pc.cyan(data.address)} created`);
 
   if (options.json) {
     jsonOut(data, options.fields);
     return;
   }
+
+  // For external domains, fetch and show DNS records to add
+  const statusRes = await apiRequest(`/api/domains/${encodeURIComponent(domain)}/email/status`);
+  const statusData = await statusRes.json();
+  if (statusRes.ok && !statusData.verified && statusData.records?.length) {
+    blank();
+    console.log(`  ${pc.bold("Add these DNS records at your registrar to activate email:")}`);
+    blank();
+    const rows = statusData.records.map((r: { type: string; name: string; value: string; priority?: number }) => [
+      pc.yellow(r.type),
+      r.name,
+      r.value.length > 50 ? r.value.slice(0, 50) + "..." : r.value,
+      ...(r.priority !== undefined ? [pc.dim(`pri=${r.priority}`)] : [""]),
+    ]);
+    table(["Type", "Name", "Value", ""], rows, [8, 20, 54, 10]);
+    blank();
+    hintCommand("Check propagation:", `domani email status --domain ${domain}`);
+  } else {
+    blank();
+    hintCommand("Read inbox:", `domani email inbox ${data.address}`);
+    hintCommand("Web inbox:", `${APP_URL}/inbox?address=${encodeURIComponent(data.address)}`);
+  }
+
+  blank();
 }
 
 // ── Delete mailbox ────────────────────────────────
@@ -366,9 +451,10 @@ async function deleteMailboxCli(options: EmailOptions): Promise<void> {
   const s = createSpinner(!options.json);
   s.start(`Deleting ${options.slug}@${domain}`);
 
+  const address = encodeURIComponent(`${options.slug}@${domain}`);
   const res = await apiRequest(
-    `/api/domains/${encodeURIComponent(domain)}/email/${encodeURIComponent(options.slug)}`,
-    { method: "DELETE" },
+    `/api/emails/${address}`,
+    { method: "DELETE", body: JSON.stringify({ confirm: true }) },
   );
   const data = await res.json();
 
@@ -418,15 +504,19 @@ async function sendEmailCli(options: EmailOptions): Promise<void> {
   if (options.inReplyTo) body.in_reply_to = options.inReplyTo;
   if (options.references) body.references = options.references;
 
+  const sendAddress = encodeURIComponent(`${options.slug}@${domain}`);
   const res = await apiRequest(
-    `/api/domains/${encodeURIComponent(domain)}/email/${encodeURIComponent(options.slug)}/send`,
+    `/api/emails/${sendAddress}/send`,
     { method: "POST", body: JSON.stringify(body) },
   );
   const data = await res.json();
 
   if (!res.ok) {
     s.stop("Failed");
-    fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+    const hint = data.code === "MONTHLY_LIMIT_EXCEEDED"
+      ? `Run ${pc.cyan("domani upgrade")} to switch to Pro (10,000 emails/month).`
+      : data.hint;
+    fail(data.error || data.message, { hint, status: res.status, json: options.json, fields: options.fields });
   }
 
   const toStr = Array.isArray(data.to) ? data.to.join(", ") : data.to;
@@ -454,8 +544,9 @@ async function messagesCli(options: EmailOptions): Promise<void> {
   const s = createSpinner(!options.json);
   s.start(`Loading messages for ${options.slug}@${domain}`);
 
+  const inboxAddress = encodeURIComponent(`${options.slug}@${domain}`);
   const res = await apiRequest(
-    `/api/domains/${encodeURIComponent(domain)}/email/${encodeURIComponent(options.slug)}/messages${qs}`,
+    `/api/emails/${inboxAddress}/messages${qs}`,
   );
   const data = await res.json();
 
@@ -489,7 +580,7 @@ async function messagesCli(options: EmailOptions): Promise<void> {
     if (m.text) {
       const preview = m.text.replace(/\s+/g, " ").trim();
       const snippet = preview.length > 60 ? preview.slice(0, 60) + "…" : preview;
-      titlePart = `${rawSubject} ${pc.dim("— " + snippet)}`;
+      titlePart = `${rawSubject} ${pc.dim("- " + snippet)}`;
     }
     console.log(`  ${dir}  ${contact.padEnd(30)} ${titlePart}  ${date}`);
   }
@@ -506,37 +597,53 @@ async function webhookCli(options: EmailOptions): Promise<void> {
   if (!options.slug) {
     fail("Slug required", { hint: "Usage: domani email webhook hello@example.com --url https://...", code: "validation_error", json: options.json, fields: options.fields });
   }
+
+  const address = `${options.slug}@${domain}`;
+  const encodedAddress = encodeURIComponent(address);
+
   if (options.dryRun) {
     return dryRunOut("email_webhook", {
-      address: `${options.slug}@${domain}`,
+      address,
       webhook_url: options.url || null,
     }, options.json, options.fields);
   }
 
   const s = createSpinner(!options.json);
-  s.start(`Updating webhook for ${options.slug}@${domain}`);
 
-  const res = await apiRequest(
-    `/api/domains/${encodeURIComponent(domain)}/email/${encodeURIComponent(options.slug)}`,
-    { method: "PATCH", body: JSON.stringify({ webhook_url: options.url || null }) },
-  );
-  const data = await res.json();
-
-  if (!res.ok) {
-    s.stop("Failed");
-    fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+  if (options.url) {
+    s.start(`Setting webhook for ${address}`);
+    const res = await apiRequest(
+      `/api/emails/${encodedAddress}/webhook`,
+      { method: "PUT", body: JSON.stringify({ url: options.url }) },
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      s.stop("Failed");
+      fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+    }
+    s.stop(`${S.success} Webhook set`);
+    if (options.json) { jsonOut(data, options.fields); return; }
+    heading(`Mailbox ${data.address}`);
+    row("Webhook", fmt.url(data.webhook_url));
+    row("Signing secret", pc.dim(data.signing_secret));
+    blank();
+  } else {
+    s.start(`Removing webhook for ${address}`);
+    const res = await apiRequest(
+      `/api/emails/${encodedAddress}/webhook`,
+      { method: "DELETE" },
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      s.stop("Failed");
+      fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+    }
+    s.stop(`${S.success} Webhook removed`);
+    if (options.json) { jsonOut(data, options.fields); return; }
+    heading(`Mailbox ${data.address}`);
+    row("Webhook", pc.dim("none"));
+    blank();
   }
-
-  s.stop(`${S.success} Webhook ${options.url ? "set" : "removed"}`);
-
-  if (options.json) {
-    jsonOut(data, options.fields);
-    return;
-  }
-
-  heading(`Mailbox ${data.address}`);
-  row("Webhook", data.webhook_url ? fmt.url(data.webhook_url) : pc.dim("none"));
-  blank();
 }
 
 // ── Set forward ─────────────────────────────────
@@ -557,8 +664,9 @@ async function forwardCli(options: EmailOptions): Promise<void> {
   const forwardTo = options.forwardTo || null;
   s.start(`Updating forward for ${options.slug}@${domain}`);
 
+  const fwdAddress = encodeURIComponent(`${options.slug}@${domain}`);
   const res = await apiRequest(
-    `/api/domains/${encodeURIComponent(domain)}/email/${encodeURIComponent(options.slug)}`,
+    `/api/emails/${fwdAddress}`,
     { method: "PATCH", body: JSON.stringify({ forward_to: forwardTo }) },
   );
   const data = await res.json();

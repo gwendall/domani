@@ -33,11 +33,10 @@ async function nextSteps(domain: string): Promise<void> {
 
 async function buySingle(
   domain: string,
-  options: { yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string; preChecked?: { price: number; currency: string; marketplace?: boolean } }
+  options: { yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string; preChecked?: { price: number; currency: string } }
 ): Promise<void> {
   requireValidDomain(domain, options);
 
-  const isMarketplace = !!options.preChecked?.marketplace;
   let searchData: { available: boolean; price: number; currency: string };
 
   if (options.preChecked) {
@@ -58,21 +57,18 @@ async function buySingle(
     s.stop(`${S.success} ${fmt.domain(domain)} ${S.dot} available ${S.dot} ${fmt.price(searchData.price)}/yr`);
   }
 
-  const priceLabel = isMarketplace ? fmt.price(searchData.price) : `${fmt.price(searchData.price)}/yr`;
-
   if (options.dryRun) {
     return dryRunOut("buy", {
       domain,
       available: true,
       price: searchData.price,
       currency: searchData.currency || "USD",
-      ...(isMarketplace ? { marketplace: true } : {}),
     }, options.json, options.fields);
   }
 
   if (!skipConfirm(options)) {
     const ok = await clackConfirm({
-      message: `Purchase ${pc.bold(domain)} for ${priceLabel}?`,
+      message: `Purchase ${pc.bold(domain)} for ${fmt.price(searchData.price)}/yr?`,
     });
     if (!ok || typeof ok === "symbol") {
       console.log(`  ${pc.dim("Cancelled.")}`);
@@ -290,7 +286,7 @@ async function buyBulk(
 
 export async function buy(
   domainsArg: string[],
-  options: { yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string; preChecked?: { price: number; currency: string; marketplace?: boolean } }
+  options: { yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string; preChecked?: { price: number; currency: string } }
 ): Promise<void> {
   let domains = domainsArg.filter(Boolean);
 

@@ -25,12 +25,15 @@ import { authCode } from "./commands/auth-code.js";
 import { transferAway } from "./commands/transfer-away.js";
 import { contact } from "./commands/contact.js";
 import { parking } from "./commands/parking.js";
-import { sell } from "./commands/sell.js";
-import { unsell } from "./commands/unsell.js";
 import { analytics } from "./commands/analytics.js";
 import { webhooks } from "./commands/webhooks.js";
+import { sell } from "./commands/sell.js";
+import { deals } from "./commands/deals.js";
+import { notifications } from "./commands/notifications.js";
 import { invoices } from "./commands/invoices.js";
 import { billing } from "./commands/billing.js";
+import { upgrade } from "./commands/upgrade.js";
+import { cancel } from "./commands/cancel.js";
 import { nameservers } from "./commands/nameservers.js";
 import { update } from "./commands/update.js";
 import { uninstall } from "./commands/uninstall.js";
@@ -79,11 +82,19 @@ program
   .command("login")
   .description(`Log in to ${APP_DOMAIN} (opens browser)`)
   .option("--json", "Output as JSON (returns auth_url for non-interactive approval)")
+  .option("--no-open", "Don't open browser (print URL instead)")
+  .addHelpText("after", `
+Examples:
+  domani login                          # interactive login (opens browser)
+  domani login --json                   # non-interactive (returns auth_url)
+  domani login --no-open                # print login URL without opening browser
+  DOMANI_API_KEY=domani_sk_xxx domani list  # skip login, use env var`)
   .action(login);
 
 program
   .command("logout")
   .description("Clear saved credentials")
+  .option("--yes", "Skip confirmation")
   .option("--json", "Output as JSON")
   .action(logout);
 
@@ -92,6 +103,11 @@ program
   .description("Show account info")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani me                             # show account overview
+  domani me --json                      # machine-readable account info
+  domani me --json --fields email,plan  # just email and plan`)
   .action(me);
 
 program
@@ -115,6 +131,18 @@ program
     fail(`Unknown action: ${action}`, { hint: "Use: domani card list, domani card add, or domani card remove" });
   });
 
+program
+  .command("upgrade")
+  .description("Upgrade to Pro — 10,000 emails/month, unlimited mailboxes, API/MCP/CLI access")
+  .option("--json", "Output as JSON (returns checkout URL)")
+  .action(upgrade);
+
+program
+  .command("cancel")
+  .description("Cancel Pro subscription (access continues until end of billing period)")
+  .option("--json", "Output as JSON")
+  .action(cancel);
+
 // Hidden alias for backwards compatibility
 program
   .command("billing", { hidden: true })
@@ -136,6 +164,11 @@ program
   .option("--token-id <id>", "Token ID (for revoke)")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani tokens list                                    # list all tokens
+  domani tokens create --name "CI" --scopes "domains:read,search"
+  domani tokens revoke --token-id tok_abc123`)
   .action(tokens);
 
 // ── Discovery ─────────────────────────────────────────
@@ -145,11 +178,17 @@ program
   .description("Check availability - domani search myapp .io .fm .xyz")
   .option("--tlds <tlds>", "Comma-separated TLDs (e.g. com,io,dev)")
   .option("--max-price <price>", "Maximum price filter")
-  .option("--source <source>", "Filter: all (default), primary (registration only), secondary (for-sale listings only)")
   .option("--all", "Show taken domains too")
   .option("--expand", "Check 30+ TLDs including creative/exotic extensions")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani search myapp                   # check popular TLDs
+  domani search myapp .io .fm .xyz      # specific TLDs
+  domani search myapp --expand          # check 30+ TLDs
+  domani search myapp --max-price 20    # only affordable options
+  domani search myapp --json            # machine-readable output`)
   .action(search);
 
 program
@@ -181,6 +220,11 @@ program
   .option("--timeout <seconds>", "Request timeout in seconds (default: 60)")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani suggest "cat sitting marketplace"
+  domani suggest "AI code editor" --style creative --tlds ai,dev
+  domani suggest "meditation app" --lang japanese --count 5`)
   .action(suggest);
 
 // ── Registration ──────────────────────────────────────
@@ -192,6 +236,13 @@ program
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani buy myapp.dev                          # buy one domain
+  domani buy myapp.dev myapp.com myapp.ai       # buy multiple
+  domani buy myapp.dev --dry-run                # preview without buying
+  domani buy myapp.dev --yes                    # skip confirmation
+  domani buy myapp.dev --json                   # machine-readable output`)
   .action(buy);
 
 program
@@ -202,6 +253,11 @@ program
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani transfer myapp.com --auth-code ABC123XYZ
+  domani transfer myapp.com --auth-code ABC123XYZ --dry-run
+  domani transfer myapp.com --auth-code ABC123XYZ --yes`)
   .action(transfer);
 
 program
@@ -220,15 +276,48 @@ program
   .option("--verify", "Verify DNS ownership and complete import")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani import myapp.com               # start import (shows TXT record to add)
+  domani import myapp.com --verify      # verify TXT record and complete import`)
   .action(importDomain);
+
+program
+  .command("sell <domain>")
+  .description("List a domain for sale (verify ownership via TXT record)")
+  .option("--price <amount>", "Sale price in USD")
+  .option("--verify", "Verify DNS ownership and activate listing")
+  .option("--transfer-code <code>", "Submit transfer/auth code for an active deal")
+  .option("--cancel", "Remove domain from sale")
+  .option("--status", "Check listing status")
+  .option("--description <text>", "Listing description")
+  .option("--yes", "Skip confirmation")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani sell myapp.dev --price 5000                    # list for $5,000
+  domani sell myapp.dev --price 5000 --description "Great brand name"
+  domani sell external.com --price 2000                 # external domain (needs TXT verify)
+  domani sell external.com --verify                     # verify TXT record
+  domani sell myapp.dev --status                        # check listing status
+  domani sell myapp.dev --cancel                        # remove from sale
+  domani sell myapp.dev --transfer-code ABC123          # provide EPP code for a deal`)
+  .action(sell);
 
 // ── Management ────────────────────────────────────────
 
 program
   .command("list")
+  .alias("domains")
   .description("List your domains")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani list                           # list all domains
+  domani domains                        # alias for list
+  domani list --json --fields domain,expires_at`)
   .action(list);
 
 program
@@ -248,11 +337,26 @@ program
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani connect --list                                 # list providers
+  domani connect myapp.dev vercel                       # connect to Vercel
+  domani connect myapp.dev --provider google-workspace  # connect Google Workspace
+  domani connect myapp.dev vercel --dry-run             # preview DNS changes`)
   .action(connect);
 
 program
   .command("email [action] [arg2]")
   .description("Manage email: list, inbox, create, delete, send, forward, webhook, setup, status, check, connect")
+  .addHelpText("after", `
+Examples:
+  domani email list                                 # list all mailboxes
+  domani email create --domain myapp.dev --slug hi  # create hi@myapp.dev
+  domani email inbox --from hi@myapp.dev            # view inbox
+  domani email send --from hi@myapp.dev --to bob@x.com --subject "Hello" --text "Hi Bob"
+  domani email setup myapp.dev                      # setup email for domain
+  domani email status myapp.dev                     # check email DNS health
+  domani email delete --domain myapp.dev --slug hi  # delete mailbox`)
   .option("--domain <domain>", "Domain name")
   .option("--slug <slug>", "Mailbox slug (local part before @)")
   .option("--from <email>", "Sender address user@domain (alternative to --domain + --slug)")
@@ -285,6 +389,14 @@ program
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani dns myapp.dev get                                          # list all records
+  domani dns myapp.dev set --type A --name @ --value 76.76.21.21    # add A record
+  domani dns myapp.dev set --type CNAME --name www --value cname.vercel-dns.com
+  domani dns myapp.dev delete --type A --name @
+  domani dns myapp.dev snapshot                                     # export DNS as JSON
+  domani dns myapp.dev restore --file dns-backup.json               # restore from snapshot`)
   .action(dns);
 
 program
@@ -307,6 +419,12 @@ program
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani settings myapp.dev                         # view current settings
+  domani settings myapp.dev --auto-renew on         # enable auto-renew
+  domani settings myapp.dev --whois-privacy on      # enable WHOIS privacy
+  domani settings myapp.dev --security-lock off     # unlock for transfer`)
   .action(settings);
 
 program
@@ -326,6 +444,11 @@ program
 program
   .command("contact [action]")
   .description("View or set WHOIS contact info (required for purchases)")
+  .addHelpText("after", `
+Examples:
+  domani contact                        # view current contact info
+  domani contact set --first-name John --last-name Doe --address1 "123 Main St" \\
+    --city "San Francisco" --state CA --postal-code 94102 --country US --phone +1.5551234567 --email john@example.com`)
   .option("--first-name <name>", "First name (for set)")
   .option("--last-name <name>", "Last name (for set)")
   .option("--org-name <name>", "Organization name (for set, optional)")
@@ -348,25 +471,13 @@ program
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani parking myapp.dev                  # view parking status
+  domani parking myapp.dev enable           # enable parking page
+  domani parking myapp.dev disable          # disable parking page
+  domani parking myapp.dev price 500        # set for-sale price to $500`)
   .action(parking);
-
-program
-  .command("sell [domain]")
-  .description("List a domain for sale on the marketplace")
-  .option("--price <amount>", "Sale price in USD")
-  .option("--description <text>", "Listing description")
-  .option("--dry-run", "Show what would happen without executing")
-  .option("--json", "Output as JSON")
-  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
-  .action(sell);
-
-program
-  .command("unsell [domain]")
-  .description("Remove a domain from the marketplace")
-  .option("--dry-run", "Show what would happen without executing")
-  .option("--json", "Output as JSON")
-  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
-  .action(unsell);
 
 program
   .command("analytics [domain]")
@@ -380,6 +491,14 @@ program
   .command("webhooks [action]")
   .alias("webhook")
   .description("Manage webhook endpoints (list/create/update/delete/deliveries/events)")
+  .addHelpText("after", `
+Examples:
+  domani webhooks list
+  domani webhooks create --url https://example.com/hook --events domain.purchased,domain.expiring
+  domani webhooks update --webhook-id wh_abc --active off
+  domani webhooks delete --webhook-id wh_abc
+  domani webhooks deliveries --webhook-id wh_abc
+  domani webhooks events                                # list available event types`)
   .option("--url <url>", "Webhook HTTPS URL")
   .option("--events <events>", "Comma-separated event types")
   .option("--webhook-id <id>", "Webhook ID (for update/delete/deliveries)")
@@ -390,11 +509,37 @@ program
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
   .action(webhooks);
 
+program
+  .command("deals [id]")
+  .description("List marketplace deals or view deal details")
+  .option("--role <role>", "Filter by role: buyer or seller")
+  .option("--status <status>", "Filter by status: active, completed, or all")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani deals                                  # list all your deals
+  domani deals --role seller --status active     # your active sales
+  domani deals deal_abc123                       # view specific deal
+  domani deals --json                            # machine-readable output`)
+  .action(deals);
+
+program
+  .command("notifications")
+  .alias("notifs")
+  .description("View notifications or mark all as read")
+  .option("--read", "Mark all notifications as read")
+  .option("--unread", "Show only unread notifications")
+  .option("--limit <n>", "Limit results")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .action(notifications);
+
 // ── Email shortcuts ───────────────────────────────────
 
 program
   .command("send [arg2]")
-  .description("Send an email — shortcut for: domani email send")
+  .description("Send an email - shortcut for: domani email send")
   .option("--from <email>", "Sender address user@domain")
   .option("--to <email>", "Recipient email address")
   .option("--cc <emails>", "CC recipients, comma-separated")
@@ -413,7 +558,7 @@ program
 
 program
   .command("inbox [arg2]")
-  .description("View email inbox — shortcut for: domani email inbox")
+  .description("View email inbox - shortcut for: domani email inbox")
   .option("--from <email>", "Sender address user@domain")
   .option("--domain <domain>", "Domain name")
   .option("--slug <slug>", "Mailbox slug")

@@ -1,8 +1,8 @@
 {
   "name": "domani",
-  "version": "0.3.12",
+  "version": "0.4.0",
   "type": "module",
-  "description": "Domain infrastructure for AI agents. Search, register, DNS, email, connect — all from your terminal.",
+  "description": "Domain infrastructure for AI agents. Search, register, DNS, email, connect - all from your terminal.",
   "license": "MIT",
   "author": "domani.run",
   "homepage": "https://domani.run",
@@ -23,12 +23,14 @@
   },
   "scripts": {
     "build": "node build.mjs",
+    "install:local": "node build.mjs && cp dist/domani.cjs $(which domani)",
     "typecheck": "tsc --noEmit",
     "test": "npx tsx --test src/__tests__/*.test.ts",
     "test:e2e": "npx tsx --test src/__tests__/e2e/*.test.ts",
     "test:e2e:full": "E2E_MUTATE=1 npx tsx --test src/__tests__/e2e/*.test.ts",
     "test:all": "npx tsx --test src/__tests__/*.test.ts src/__tests__/e2e/*.test.ts",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "publish:npm": "node build.mjs && npm publish --access public"
   },
   "keywords": [
     "domain",

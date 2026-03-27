@@ -15,7 +15,7 @@ domani gives you one account and multiple ways in:
 - **CLI** - This package. Everything the web app does, from your terminal
 - **[MCP Server](https://domani.run/mcp)** - 65 tools for Claude Code, Cursor, Windsurf, and any MCP-compatible agent
 - **[OpenClaw](https://openclaw.com)** - `clawhub install domani`
-- **[Agent Skill](https://domani.run/SKILL.md)** - Step-by-step guide your agent can follow. Install with `npx skills add domani.run`
+- **[Agent Skill](https://domani.run/skill.md)** - Step-by-step guide your agent can follow. Install with `npx skills add domani.run`
 - **[REST API](https://domani.run/docs)** - Direct HTTP access to everything
 
 All interfaces share the same API key and the same data.
@@ -92,78 +92,78 @@ domani schema buy --json
 
 ### Domains
 
-```bash
-domani search <name> [tlds...]    # Check availability across TLDs (--expand for 30+)
-domani suggest <prompt>           # AI-powered domain suggestions (--style, --lang, --tlds)
-domani buy <domains...>           # Purchase one or more domains
-domani transfer <domain>          # Transfer from another registrar
-domani renew <domain>             # Renew a domain (--years 1-10)
-domani import <domain>            # Import a domain you own elsewhere (DNS monitoring only)
-domani list                       # List your domains
-domani status <domain>            # Health check (DNS, SSL, email, expiry)
-domani tlds                       # List all TLDs with pricing (--sort, --max-price)
-domani whois <domain>             # WHOIS/RDAP lookup
+```
+domani search <name> [tlds...]    Check availability across TLDs (--expand for 30+)
+domani suggest <prompt>           AI-powered domain suggestions (--style, --lang, --tlds)
+domani buy <domains...>           Purchase one or more domains
+domani transfer <domain>          Transfer from another registrar
+domani renew <domain>             Renew a domain (--years 1-10)
+domani import <domain>            Import a domain you own elsewhere (DNS monitoring only)
+domani list                       List your domains
+domani status <domain>            Health check (DNS, SSL, email, expiry)
+domani tlds                       List all TLDs with pricing (--sort, --max-price)
+domani whois <domain>             WHOIS/RDAP lookup
 ```
 
 ### Email
 
-```bash
-domani email list                    # List all mailboxes
-domani email create user@domain      # Create a mailbox
-domani email delete user@domain      # Delete a mailbox
-domani email inbox user@domain       # List messages (--direction in|out)
-domani email send user@domain        # Send an email (--to, --subject, --body, --cc, --bcc)
-domani email forward user@domain     # Forward inbound to a personal address (--forward-to)
-domani email webhook user@domain     # Forward inbound as JSON to your endpoint (--url)
-domani email setup <domain>          # Auto-configure MX, SPF, DKIM, DMARC
-domani email status <domain>         # Check email DNS health
-domani email connect <domain> <provider>   # Connect external provider (Gmail, Fastmail, Proton)
+```
+domani email list                    List all mailboxes
+domani email create user@domain      Create a mailbox
+domani email delete user@domain      Delete a mailbox
+domani email inbox user@domain       List messages (--direction in|out)
+domani email send user@domain        Send an email (--to, --subject, --body, --cc, --bcc)
+domani email forward user@domain     Forward inbound to a personal address (--forward-to)
+domani email webhook user@domain     Forward inbound as JSON to your endpoint (--url)
+domani email setup --domain <domain>       Auto-configure MX, SPF, DKIM, DMARC
+domani email status --domain <domain>      Check email DNS health
+domani email connect --domain <domain> <provider>   Connect external provider (Gmail, Fastmail, Proton)
 ```
 
 ### DNS
 
-```bash
-domani dns <domain> get            # List all DNS records
-domani dns <domain> set <type> <name> <value>   # Add/update a record
-domani dns <domain> delete <type> <name>        # Remove a record
-domani dns <domain> snapshot       # Export DNS to file
-domani dns <domain> restore        # Restore DNS from snapshot
-domani nameservers <domain>        # Get or set nameservers (--reset for defaults)
-domani connect <domain> <target>   # Auto-configure DNS for a provider
+```
+domani dns <domain> get            List all DNS records
+domani dns <domain> set <type> <name> <value>   Add/update a record
+domani dns <domain> delete <type> <name>        Remove a record
+domani dns <domain> snapshot       Export DNS to file
+domani dns <domain> restore        Restore DNS from snapshot
+domani nameservers <domain>        Get or set nameservers (--reset for defaults)
+domani connect <domain> <target>   Auto-configure DNS for a provider
 ```
 
 **Supported providers**: Vercel, Netlify, Cloudflare Pages, GitHub Pages, Fly.io, Railway, Render, Google Workspace, Fastmail, Proton Mail.
 
 ### Settings
 
-```bash
-domani settings <domain>           # View/update auto-renew, WHOIS privacy, security lock
-domani contact [view|set]          # Manage WHOIS contact info
-domani parking <domain>            # Manage parking page (enable/disable/price)
-domani analytics <domain>          # View parking analytics
-domani auth-code <domain>          # Get EPP auth code for outbound transfer
-domani transfer-away <domain>      # Check outbound transfer status
+```
+domani settings <domain>           View/update auto-renew, WHOIS privacy, security lock
+domani contact [view|set]          Manage WHOIS contact info
+domani parking <domain>            Manage parking page (enable/disable/price)
+domani analytics <domain>          View parking analytics
+domani auth-code <domain>          Get EPP auth code for outbound transfer
+domani transfer-away <domain>      Check outbound transfer status
 ```
 
 ### Account
 
-```bash
-domani login                       # Log in to domani.run (opens browser)
-domani logout                      # Clear saved credentials
-domani me                          # Show account info
-domani billing                     # Add or update payment method (opens browser)
-domani invoices                    # List payment invoices
-domani token                       # Print your API key
-domani tokens [list|create|revoke] # Manage API tokens (scoped, expiring)
-domani webhooks [action]           # Manage webhook endpoints
+```
+domani login                       Log in to domani.run (opens browser)
+domani logout                      Clear saved credentials
+domani me                          Show account info
+domani billing                     Add or update payment method (opens browser)
+domani invoices                    List payment invoices
+domani token                       Print your API key
+domani tokens [list|create|revoke] Manage API tokens (scoped, expiring)
+domani webhooks [action]           Manage webhook endpoints
 ```
 
 ### Introspection
 
-```bash
-domani schema [command]            # Show command schemas for AI agent integration
-domani update                      # Update to the latest version
-domani uninstall                   # Remove domani CLI and config
+```
+domani schema [command]            Show command schemas for AI agent integration
+domani update                      Update to the latest version
+domani uninstall                   Remove domani CLI and config
 ```
 
 ## Agent integration
