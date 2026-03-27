@@ -1,6 +1,12 @@
 import { Command } from "commander";
+
+// Clack spinners add keypress listeners for Ctrl+C handling.
+// Increase the limit to avoid false MaxListenersExceeded warnings during polling.
+process.stdin.setMaxListeners(50);
 import pc from "picocolors";
 import { setApiUrlOverride, checkVersion, CLI_VERSION } from "./config.js";
+import { ensureAuth } from "./auth.js";
+import { fail } from "./ui.js";
 import { APP_DOMAIN } from "./brand.js";
 import { login } from "./commands/login.js";
 import { logout } from "./commands/logout.js";
@@ -59,7 +65,7 @@ program
       }
     },
   })
-  .hook("preAction", (thisCommand, actionCommand) => {
+  .hook("preAction", async (thisCommand, actionCommand) => {
     const opts = thisCommand.opts();
     if (opts.apiUrl) setApiUrlOverride(opts.apiUrl);
 
@@ -73,6 +79,13 @@ program
       if (hasJsonOpt) {
         actionCommand.setOptionValue("json", true);
       }
+    }
+
+    // Ensure auth before any authenticated command runs —
+    // before any command spinner starts, so clack doesn't conflict.
+    const publicCommands = ["login", "logout", "search", "suggest", "tlds", "whois", "schema", "update", "uninstall"];
+    if (!publicCommands.includes(actionCommand.name())) {
+      await ensureAuth();
     }
   });
 

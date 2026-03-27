@@ -43,20 +43,34 @@ export async function ensureAuth(): Promise<void> {
   const s = createSpinner(true);
   s.start("Requesting auth code");
 
-  const res = await fetch(`${apiUrl}/api/auth/cli`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${apiUrl}/api/auth/cli`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch {
+    s.stop("Failed");
+    console.error(`  ${pc.red("✗")} Could not reach ${apiUrl}. Check your connection.`);
+    process.exit(1);
+  }
 
   if (!res.ok) {
     s.stop("Failed");
-    let msg = `Could not reach ${apiUrl}`;
+    let msg = `Server error (${res.status})`;
     try { const d = await res.json(); msg = d.error || d.message || msg; } catch { /* ignore */ }
     console.error(`  ${pc.red("✗")} ${msg}`);
     process.exit(1);
   }
 
-  const { code, auth_url } = await res.json();
+  let code: string, auth_url: string;
+  try {
+    ({ code, auth_url } = await res.json());
+  } catch {
+    s.stop("Failed");
+    console.error(`  ${pc.red("✗")} Invalid response from server.`);
+    process.exit(1);
+  }
   s.stop(`${S.success} Auth code ready`);
 
   blank();

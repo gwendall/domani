@@ -33,11 +33,11 @@ async function nextSteps(domain: string): Promise<void> {
 
 async function buySingle(
   domain: string,
-  options: { yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string; preChecked?: { price: number; currency: string } }
+  options: { yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string; preChecked?: { price: number; currency: string; marketplace?: boolean } }
 ): Promise<void> {
   requireValidDomain(domain, options);
 
-  let searchData: { available: boolean; price: number; currency: string };
+  let searchData: { available: boolean; price: number; currency: string; error?: string; hint?: string };
 
   if (options.preChecked) {
     searchData = { available: true, ...options.preChecked };
@@ -286,7 +286,7 @@ async function buyBulk(
 
 export async function buy(
   domainsArg: string[],
-  options: { yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string; preChecked?: { price: number; currency: string } }
+  options: { yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string; preChecked?: { price: number; currency: string; marketplace?: boolean } }
 ): Promise<void> {
   let domains = domainsArg.filter(Boolean);
 

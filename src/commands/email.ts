@@ -347,34 +347,41 @@ async function createMailboxCli(options: EmailOptions): Promise<void> {
   });
   let data = await res.json();
 
-  // Domain not in account → show records + auto-poll by retrying same request
+  // Domain not in account → show records + per-record progress tracking
   if (res.status === 202 && !options.json) {
     s.stop("");
 
+    type DnsRecord = { type: string; name: string; value: string; priority?: number; note?: string };
     const txtRecord = data.txt_record;
-    const emailRecords: { type: string; name: string; value: string; priority?: number }[] = data.email_records || [];
-    const allRecords = [
+    const emailRecords: DnsRecord[] = data.email_records || [];
+    const allRecords: DnsRecord[] = [
       { type: "TXT", name: txtRecord?.name || "@", value: txtRecord?.value || "", note: "ownership proof" },
-      ...emailRecords.map((r: { type: string; name: string; value: string; priority?: number }) => ({ ...r, note: "" })),
+      ...emailRecords,
     ];
 
+    // Show full values (copyable)
     blank();
     console.log(`  Add these records at your DNS provider:`);
     blank();
-    const colW = [6, 20, 52, 16];
-    console.log(`  ${pc.dim("Type".padEnd(colW[0]))}  ${pc.dim("Name".padEnd(colW[1]))}  ${pc.dim("Value".padEnd(colW[2]))}  ${pc.dim("Note")}`);
     for (const r of allRecords) {
-      const val = r.value.length > colW[2] ? r.value.slice(0, colW[2] - 3) + "..." : r.value;
-      const pri = "priority" in r && r.priority !== undefined ? pc.dim(` pri=${r.priority}`) : "";
-      console.log(`  ${pc.yellow(r.type.padEnd(colW[0]))}  ${r.name.padEnd(colW[1])}  ${pc.cyan(val)}${pri}  ${r.note ? pc.dim(r.note) : ""}`);
+      const pri = r.priority !== undefined ? `  ${pc.dim(`priority: ${r.priority}`)}` : "";
+      const note = r.note ? `  ${pc.dim(`(${r.note})`)}` : "";
+      console.log(`  ${pc.yellow(r.type)}  ${pc.bold(r.name)}${pri}${note}`);
+      console.log(`  ${pc.dim("→")} ${pc.cyan(r.value)}`);
+      blank();
     }
-    blank();
     hint("DNS propagation typically takes 5–30 minutes. Checking automatically...");
     blank();
 
-    // Poll: retry same POST /api/emails until 201
-    const pollSpinner = createSpinner(true);
-    pollSpinner.start("Waiting for DNS propagation");
+    // Progress table — one row per record, updated individually
+    const ptRows = allRecords.map((r) => ({
+      cells: [pc.yellow(r.type), r.name, r.note ? pc.dim(`(${r.note})`) : ""],
+      status: "pending" as const,
+    }));
+    const pt = createProgressTable(["Type", "Name", ""], ptRows, [6, 24, 16]);
+    pt.start();
+
+    // Phase 1: poll ownership (TXT) via POST /api/emails
     let attempts = 0;
     while (res.status === 202 && attempts < 60) {
       await sleep(15000);
@@ -382,21 +389,40 @@ async function createMailboxCli(options: EmailOptions): Promise<void> {
       res = await apiRequest(`/api/emails`, { method: "POST", body: JSON.stringify({ address }) });
       data = await res.json();
       if (res.status !== 202 && !res.ok) {
-        pollSpinner.stop("Failed");
+        pt.stop();
         fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
       }
-      pollSpinner.start(`Waiting for DNS... (${Math.round(attempts * 15 / 60)}m)`);
     }
     if (res.status === 202) {
-      pollSpinner.stop("");
-      fail("DNS records not detected after 15 minutes.", {
-        hint: `Check records are set correctly, then retry: domani email create ${address}`,
-        code: "timeout",
-        json: options.json,
-        fields: options.fields,
+      pt.stop();
+      fail("TXT record not detected after 15 minutes.", {
+        hint: `Check the record is set, then retry: domani email create ${address}`,
+        code: "timeout", json: options.json, fields: options.fields,
       });
     }
-    pollSpinner.stop(`${S.success} DNS verified`);
+    // TXT ownership verified → mark first row done
+    pt.markDone(0);
+
+    // Phase 2: poll email DNS per-record via email/status
+    const recordKey = (r: { type: string; name: string }) => `${r.type}:${r.name}`;
+    const rowByKey = new Map<string, number>();
+    allRecords.slice(1).forEach((r, i) => rowByKey.set(recordKey(r), i + 1));
+
+    for (let i = 0; i < 60; i++) {
+      await sleep(15000);
+      const stRes = await apiRequest(`/api/domains/${encodeURIComponent(domain)}/email/status`);
+      const stData = await stRes.json();
+      if (stRes.ok && stData.records) {
+        for (const r of stData.records) {
+          if (r.status === "verified" || r.status === "created") {
+            const idx = rowByKey.get(recordKey(r));
+            if (idx !== undefined) pt.markDone(idx);
+          }
+        }
+      }
+      if (stRes.ok && stData.verified) break;
+    }
+    pt.stop();
     blank();
   }
 
@@ -412,25 +438,15 @@ async function createMailboxCli(options: EmailOptions): Promise<void> {
     return;
   }
 
-  // For external domains, fetch and show DNS records to add
+  // Check if email DNS is fully propagated
   const statusRes = await apiRequest(`/api/domains/${encodeURIComponent(domain)}/email/status`);
   const statusData = await statusRes.json();
-  if (statusRes.ok && !statusData.verified && statusData.records?.length) {
-    blank();
-    console.log(`  ${pc.bold("Add these DNS records at your registrar to activate email:")}`);
-    blank();
-    const rows = statusData.records.map((r: { type: string; name: string; value: string; priority?: number }) => [
-      pc.yellow(r.type),
-      r.name,
-      r.value.length > 50 ? r.value.slice(0, 50) + "..." : r.value,
-      ...(r.priority !== undefined ? [pc.dim(`pri=${r.priority}`)] : [""]),
-    ]);
-    table(["Type", "Name", "Value", ""], rows, [8, 20, 54, 10]);
-    blank();
-    hintCommand("Check propagation:", `domani email status --domain ${domain}`);
-  } else {
-    blank();
+  blank();
+  if (statusRes.ok && statusData.verified) {
     hintCommand("Read inbox:", `domani email inbox ${data.address}`);
+    hintCommand("Web inbox:", `${APP_URL}/inbox?address=${encodeURIComponent(data.address)}`);
+  } else {
+    hintCommand("Check propagation:", `domani email status --domain ${domain}`);
     hintCommand("Web inbox:", `${APP_URL}/inbox?address=${encodeURIComponent(data.address)}`);
   }
 
