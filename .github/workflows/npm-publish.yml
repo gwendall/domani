@@ -17,7 +17,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
 
       - run: npm install --include=dev
 
@@ -25,3 +24,5 @@ jobs:
 
       - name: Publish
         run: npm publish --access public --provenance
+        env:
+          NPM_CONFIG_USERCONFIG: /dev/null
