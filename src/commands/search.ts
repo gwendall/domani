@@ -106,8 +106,6 @@ async function liveSelectSearch(
   let selectedIndex = 0;
   let streaming = true;
   let renderedLines = 0;
-  let total = 0;
-  let availableCount = 0;
   let batchIndex = 0; // how many TLD_BATCHES have been loaded
   let pendingMore = false;
   let done = false;
@@ -280,8 +278,6 @@ async function liveSelectSearch(
           } else if (currentEvent === "result" && !data.available && !data.error) {
             if (takenItems.length < 8) takenItems.push(data);
           } else if (currentEvent === "done") {
-            total += data.total;
-            availableCount += data.available;
             streaming = false;
             selectedIndex = Math.min(selectedIndex, maxIdx());
             // Auto-load next batch until we have BATCH_SIZE results or exhaust all TLDs
