@@ -1,7 +1,7 @@
 import { apiRequest } from "../api.js";
 import { APP_URL } from "../brand.js";
 import pc from "picocolors";
-import { select, confirm, text, isCancel } from "@clack/prompts";
+import { select, text, isCancel } from "@clack/prompts";
 import {
   S,
   fmt,

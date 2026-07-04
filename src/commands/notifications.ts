@@ -1,6 +1,6 @@
 import { apiRequest } from "../api.js";
 import pc from "picocolors";
-import { S, fmt, heading, blank, table, createSpinner, jsonOut, fail } from "../ui.js";
+import { S, heading, blank, table, createSpinner, jsonOut, fail } from "../ui.js";
 
 export async function notifications(
   options: {

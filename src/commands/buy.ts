@@ -1,7 +1,7 @@
 import { apiRequest } from "../api.js";
 import { confirm as clackConfirm, select, isCancel, text, type TextOptions } from "@clack/prompts";
 import pc from "picocolors";
-import { S, fmt, heading, row, blank, hintCommand, createSpinner, createProgressTable, jsonOut, skipConfirm, dryRunOut, fail, isTTY } from "../ui.js";
+import { S, fmt, blank, hintCommand, createSpinner, createProgressTable, jsonOut, skipConfirm, dryRunOut, fail, isTTY } from "../ui.js";
 import { requireValidDomain, requireValidDomains } from "../validate.js";
 
 async function nextSteps(domain: string): Promise<void> {
