@@ -8,6 +8,17 @@ function safeResponse(res: Response): Response {
     try {
       return JSON.parse(text);
     } catch {
+      const snippet = text.trim().slice(0, 120);
+      if (res.ok) {
+        // Callers gate on res.ok: flip it so a 2xx with a non-JSON body
+        // (proxy/deploy hiccup) takes the error path instead of being
+        // treated as a success with missing fields.
+        Object.defineProperty(res, "ok", { value: false });
+        return {
+          error: `Unexpected non-JSON response (HTTP ${res.status})`,
+          hint: `The server replied but not with JSON${snippet ? ` (got: "${snippet}")` : ""}. This is usually transient (deploy or proxy) - retry in a few seconds.`,
+        };
+      }
       return { error: `Server error (${res.status})`, hint: "The server returned an unexpected response. Try again later." };
     }
   };

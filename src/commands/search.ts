@@ -23,6 +23,8 @@ interface SearchResult {
 }
 
 const BATCH_SIZE = 10;
+// Server rejects bulk search requests above this many domains (TOO_MANY_DOMAINS)
+const MAX_BULK_DOMAINS = 200;
 
 // Curated priority order — most desirable TLDs searched first, regardless of price
 const PRIORITY_TLDS = [
@@ -256,6 +258,11 @@ async function liveSelectSearch(
           currentEvent = line.slice(7);
         } else if (line.startsWith("data: ")) {
           const data = JSON.parse(line.slice(6));
+          if (currentEvent === "error") {
+            if (process.stdin.isTTY) process.stdin.setRawMode(false);
+            process.stdout.write("\x1B[?25h"); // show cursor (hidden for the live list)
+            fail(data.message || data.error || "Search failed", { code: data.code || "error" });
+          }
           if (currentEvent === "result") lastChecked = data.domain;
           if (currentEvent === "result" && (data.available || data.for_sale || showAll)) {
             if (batchIndex === 0) {
@@ -532,8 +539,11 @@ export async function search(
   // TTY + open search: live interactive select (loops on "New search")
   if (isTTY && !options.json) {
     const allTlds = await fetchAllTlds();
+    if (options.expand && allTlds.length > MAX_BULK_DOMAINS) {
+      console.error(pc.dim(`  (--expand: checking the first ${MAX_BULK_DOMAINS} of ${allTlds.length} TLDs - server limit per request)`));
+    }
     while (true) {
-      const tlds = options.expand ? allTlds : allTlds.slice(0, BATCH_SIZE);
+      const tlds = options.expand ? allTlds.slice(0, MAX_BULK_DOMAINS) : allTlds.slice(0, BATCH_SIZE);
       const params = new URLSearchParams();
       params.set("domains", tlds.map((tld) => `${currentName}.${tld}`).join(","));
       if (options.maxPrice) params.set("max_price", options.maxPrice);
@@ -576,7 +586,10 @@ export async function search(
 
   const name = currentName;
   const allTldsForNonTty = await fetchAllTlds();
-  const tlds = mergedTlds.length > 0 ? mergedTlds : (options.expand ? allTldsForNonTty : allTldsForNonTty.slice(0, BATCH_SIZE));
+  const tlds = mergedTlds.length > 0 ? mergedTlds : (options.expand ? allTldsForNonTty.slice(0, MAX_BULK_DOMAINS) : allTldsForNonTty.slice(0, BATCH_SIZE));
+  if (options.expand && mergedTlds.length === 0 && allTldsForNonTty.length > MAX_BULK_DOMAINS) {
+    console.error(`(--expand: checking the first ${MAX_BULK_DOMAINS} of ${allTldsForNonTty.length} TLDs - server limit per request; use --tlds to target others)`);
+  }
   const domains = tlds.map((tld) => `${name}.${tld}`);
   const params = new URLSearchParams();
   params.set("domains", domains.join(","));
@@ -651,7 +664,10 @@ export async function search(
         currentEvent = line.slice(7);
       } else if (line.startsWith("data: ")) {
         const data = JSON.parse(line.slice(6));
-        if (currentEvent === "result") {
+        if (currentEvent === "error") {
+          s.stop("Search failed");
+          fail(data.message || data.error || "Search failed", { code: data.code || "error", json: options.json, fields: options.fields });
+        } else if (currentEvent === "result") {
           received++;
           if (data.available || data.for_sale || showAll) {
             if (!options.json) printResult(data);

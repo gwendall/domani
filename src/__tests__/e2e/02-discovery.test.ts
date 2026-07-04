@@ -84,7 +84,8 @@ describe("discovery workflow", () => {
     });
 
     it("--expand searches 30+ TLDs", () => {
-      const result = run(["search", `e2eexpand${Date.now()}`, "--expand"], { timeout: 60_000 });
+      // --expand checks up to 200 TLDs; prod streams them in ~60-90s
+      const result = run(["search", `e2eexpand${Date.now()}`, "--expand"], { timeout: 120_000 });
       assertSuccess(result);
       assertField(result.data, "name");
       assertField(result.data, "results");
