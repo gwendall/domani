@@ -13,6 +13,7 @@ import { logout } from "./commands/logout.js";
 import { me } from "./commands/me.js";
 import { search } from "./commands/search.js";
 import { buy } from "./commands/buy.js";
+import { provision } from "./commands/provision.js";
 import { list } from "./commands/list.js";
 import { dns } from "./commands/dns.js";
 import { tlds } from "./commands/tlds.js";
@@ -257,6 +258,25 @@ Examples:
   domani buy myapp.dev --yes                    # skip confirmation
   domani buy myapp.dev --json                   # machine-readable output`)
   .action(buy);
+
+program
+  .command("provision <domain>")
+  .description("Give an agent a full identity: domain + mailbox + webhook in one call")
+  .option("--slug <slug>", "Mailbox local part (e.g. 'hi' for hi@domain). Default 'hi'")
+  .option("--name <name>", "Display name for outbound email")
+  .option("--webhook <url>", "HTTPS URL to receive inbound email + domain events")
+  .option("--years <n>", "Registration years (1-10, default 1)")
+  .option("--payment-method <method>", "card, usdc, or balance")
+  .option("--dry-run", "Show what would happen without executing")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani provision myagent.run                                 # domain + hi@ mailbox
+  domani provision myagent.run --slug hey --name "My Agent"    # custom mailbox
+  domani provision myagent.run --webhook https://me.dev/inbox  # + inbound webhook
+  domani provision myagent.run --dry-run                       # preview`)
+  .action(provision);
 
 program
   .command("transfer <domain>")
