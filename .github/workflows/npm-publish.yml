@@ -19,8 +19,8 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Update npm
-        run: npm install -g npm@latest
+      # Use node 22's bundled npm (10.9.x): `npm install -g npm@latest` pulled an
+      # npm whose provenance path fails with "Cannot find module 'sigstore'".
 
       - run: npm install --include=dev
 
