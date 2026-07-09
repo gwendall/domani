@@ -74,6 +74,22 @@ function providerLabel(name: string): string {
   return PROVIDER_LABELS[name] || name;
 }
 
+/**
+ * Split a comma-separated recipient string into a trimmed, de-blanked list.
+ * The send API accepts a single email string OR an array; a raw
+ * "a@x.com,b@y.com" string fails email validation, so multi-recipient
+ * to/cc/bcc must go over the wire as an array.
+ */
+export function parseRecipients(value?: string): string[] {
+  return value ? value.split(",").map((s) => s.trim()).filter(Boolean) : [];
+}
+
+/** Wire form for a recipient field: single string when one, array when many. */
+export function recipientField(list: string[]): string | string[] | undefined {
+  if (list.length === 0) return undefined;
+  return list.length === 1 ? list[0] : list;
+}
+
 /** Parse "user@domain" from arg2 into options.slug and options.domain */
 function parseEmailArg(arg2: string | undefined, options: EmailOptions): void {
   if (arg2 && arg2.includes("@")) {
@@ -512,9 +528,12 @@ async function sendEmailCli(options: EmailOptions): Promise<void> {
   const s = createSpinner(!options.json);
   s.start(`Sending from ${options.slug}@${domain}`);
 
-  const body: Record<string, unknown> = { to: options.to };
-  if (options.cc) body.cc = options.cc;
-  if (options.bcc) body.bcc = options.bcc;
+  // Comma-separated to/cc/bcc go over the wire as arrays (see parseRecipients).
+  const body: Record<string, unknown> = { to: recipientField(parseRecipients(options.to)) };
+  const cc = recipientField(parseRecipients(options.cc));
+  const bcc = recipientField(parseRecipients(options.bcc));
+  if (cc) body.cc = cc;
+  if (bcc) body.bcc = bcc;
   if (options.subject) body.subject = options.subject;
   if (options.text) body.text = options.text;
   if (options.inReplyTo) body.in_reply_to = options.inReplyTo;

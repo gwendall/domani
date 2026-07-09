@@ -36,6 +36,7 @@ import { analytics } from "./commands/analytics.js";
 import { webhooks } from "./commands/webhooks.js";
 import { sell } from "./commands/sell.js";
 import { deals } from "./commands/deals.js";
+import { broker } from "./commands/broker.js";
 import { notifications } from "./commands/notifications.js";
 import { invoices } from "./commands/invoices.js";
 import { billing } from "./commands/billing.js";
@@ -556,6 +557,27 @@ Examples:
   domani deals deal_abc123                       # view specific deal
   domani deals --json                            # machine-readable output`)
   .action(deals);
+
+program
+  .command("broker [action] [arg]")
+  .description("Acquire a taken, unlisted domain (broker sources + negotiates on your behalf)")
+  .option("--max-budget <amount>", "Your ceiling in USD for a request")
+  .option("--status <status>", "Filter the list by status")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Actions:
+  request <domain>    ask domani to acquire a taken domain (commission-only)
+  list (default)      list your acquisition requests
+  status <id>         view one request's progress
+  cancel <id>         cancel an active request
+
+Examples:
+  domani broker request dream.com --max-budget 5000
+  domani broker                                  # list your requests
+  domani broker status brq_abc123
+  domani broker cancel brq_abc123`)
+  .action((action, arg, options) => broker(action, arg, options));
 
 program
   .command("notifications")
