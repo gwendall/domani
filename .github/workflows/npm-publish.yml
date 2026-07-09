@@ -19,8 +19,11 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      # Use node 22's bundled npm (10.9.x): `npm install -g npm@latest` pulled an
-      # npm whose provenance path fails with "Cannot find module 'sigstore'".
+      # Pin npm: OIDC trusted publishing needs >= 11.5.1, but npm@latest (12.0.0)
+      # breaks provenance with "Cannot find module 'sigstore'", and node's bundled
+      # 10.9 is too old for OIDC (publish 404s). 11.7.0 is the last 11.x - has both.
+      - name: Pin npm
+        run: npm install -g npm@11.7.0
 
       - run: npm install --include=dev
 
