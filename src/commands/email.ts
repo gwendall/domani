@@ -22,7 +22,7 @@ import { requireValidDomain } from "../validate.js";
 import { pickDomain } from "../prompt.js";
 
 /** Known subcommands (used for legacy detection) */
-const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "webhook", "forward", "check", "connect"];
+const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect"];
 
 /** Provider display names */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -57,6 +57,9 @@ interface EmailOptions {
   inReplyTo?: string;
   references?: string;
   direction?: string;
+  folder?: string;
+  view?: string;
+  messageIds?: string;
   limit?: string;
   body?: string;
   from?: string;
@@ -141,6 +144,16 @@ export async function email(
       return listMailboxesCli(options);
     case "inbox":
       return messagesCli(options);
+    case "folders":
+      return foldersCli(options);
+    case "archive":
+    case "trash":
+    case "restore":
+    case "read":
+    case "unread":
+    case "star":
+    case "unstar":
+      return lifecycleActionCli(action, options);
     case "setup":
       return setupEmail(options);
     case "status":
@@ -163,7 +176,7 @@ export async function email(
       return connectProvider(options.domain || await pickDomain(), arg2 || undefined, !!options.json, options.fields);
     default:
       fail(`Unknown action: ${action}`, {
-        hint: "Actions: list, inbox, create, delete, send, forward, webhook, setup, status, check, connect",
+        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, create, delete, send, forward, webhook, setup, status, check, connect",
         code: "validation_error",
         json: options.json,
         fields: options.fields,
@@ -573,6 +586,8 @@ async function messagesCli(options: EmailOptions): Promise<void> {
 
   const params = new URLSearchParams();
   if (options.direction) params.set("direction", options.direction);
+  if (options.folder) params.set("folder", options.folder);
+  if (options.view) params.set("view", options.view);
   if (options.limit) params.set("limit", options.limit);
   const qs = params.toString() ? `?${params}` : "";
 
@@ -623,6 +638,40 @@ async function messagesCli(options: EmailOptions): Promise<void> {
   if (data.next_cursor) {
     console.log(`  ${pc.dim("… more available, use --limit to paginate")}`);
   }
+}
+
+async function foldersCli(options: EmailOptions): Promise<void> {
+  const domain = await requireDomain(options);
+  if (!options.slug) fail("Slug required", { hint: "Usage: domani email folders hello@example.com", code: "validation_error", json: options.json, fields: options.fields });
+  const address = encodeURIComponent(`${options.slug}@${domain}`);
+  const res = await apiRequest(`/api/emails/${address}/folders`);
+  const data = await res.json();
+  if (!res.ok) fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading(`Folders for ${options.slug}@${domain}`);
+  for (const folder of data.folders || []) row(folder.id, `${folder.total} total, ${folder.unread} unread`);
+  for (const view of data.views || []) row(view.id, `${view.total} total, ${view.unread} unread`);
+}
+
+async function lifecycleActionCli(action: string, options: EmailOptions): Promise<void> {
+  const domain = await requireDomain(options);
+  if (!options.slug) fail("Slug required", { hint: `Usage: domani email ${action} hello@example.com --message-ids id1,id2`, code: "validation_error", json: options.json, fields: options.fields });
+  const messageIds = (options.messageIds || "").split(",").map((id) => id.trim()).filter(Boolean);
+  if (!messageIds.length) fail("Message IDs required", { hint: "Pass --message-ids id1,id2", code: "validation_error", json: options.json, fields: options.fields });
+  const body: Record<string, unknown> = { message_ids: messageIds };
+  if (action === "archive" || action === "trash") Object.assign(body, { action: "move", destination: action === "archive" ? "archive" : "trash" });
+  if (action === "restore") body.action = "restore";
+  if (action === "read" || action === "unread") Object.assign(body, { action: "mark_read", read: action === "read" });
+  if (action === "star" || action === "unstar") Object.assign(body, { action: "star", starred: action === "star" });
+  if (options.dryRun) return dryRunOut("email_messages_action", { address: `${options.slug}@${domain}`, ...body }, options.json, options.fields);
+  const address = encodeURIComponent(`${options.slug}@${domain}`);
+  const res = await apiRequest(`/api/emails/${address}/messages/actions`, { method: "POST", body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok && res.status !== 207) fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  const succeeded = (data.results || []).filter((result: { ok: boolean }) => result.ok).length;
+  const failed = (data.results || []).length - succeeded;
+  console.log(`${S.success} ${succeeded} updated${failed ? pc.yellow(`, ${failed} failed`) : ""}`);
 }
 
 // ── Set webhook ──────────────────────────────────

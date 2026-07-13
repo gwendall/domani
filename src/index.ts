@@ -22,6 +22,7 @@ import { suggest } from "./commands/suggest.js";
 import { connect } from "./commands/connect.js";
 import { status } from "./commands/status.js";
 import { transfer } from "./commands/transfer.js";
+import { adopt } from "./commands/adopt.js";
 import { renew } from "./commands/renew.js";
 import { importDomain } from "./commands/import.js";
 import { email } from "./commands/email.js";
@@ -83,7 +84,7 @@ program
       }
     }
 
-    // Ensure auth before any authenticated command runs —
+    // Ensure auth before any authenticated command runs.
     // before any command spinner starts, so clack doesn't conflict.
     const publicCommands = ["login", "logout", "search", "suggest", "tlds", "whois", "schema", "update", "uninstall"];
     if (!publicCommands.includes(actionCommand.name())) {
@@ -148,7 +149,7 @@ program
 
 program
   .command("upgrade")
-  .description("Upgrade to Pro — 10,000 emails/month, unlimited mailboxes, API/MCP/CLI access")
+  .description("Upgrade to Pro: 10,000 emails/month, unlimited mailboxes, API/MCP/CLI access")
   .option("--json", "Output as JSON (returns checkout URL)")
   .action(upgrade);
 
@@ -166,8 +167,9 @@ program
 
 program
   .command("token")
-  .description("Print your API key")
+  .description("Print your API key (masked on a terminal; --reveal for the full key)")
   .option("--json", "Output as JSON")
+  .option("--reveal", "Print the full key even on an interactive terminal")
   .action(token);
 
 program
@@ -280,6 +282,17 @@ Examples:
   .action(provision);
 
 program
+  .command("adopt <domain>")
+  .description("Inspect an existing domain and plan the safest connection or transfer")
+  .option("--json", "Output the complete machine-readable plan as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani adopt myapp.com
+  domani adopt myapp.com --json`)
+  .action(adopt);
+
+program
   .command("transfer <domain>")
   .description("Transfer a domain from another registrar")
   .option("--auth-code <code>", "EPP/auth code from current registrar")
@@ -381,12 +394,14 @@ Examples:
 
 program
   .command("email [action] [arg2]")
-  .description("Manage email: list, inbox, create, delete, send, forward, webhook, setup, status, check, connect")
+  .description("Manage email: inbox lifecycle, mailboxes, send, forwarding, webhooks and setup")
   .addHelpText("after", `
 Examples:
   domani email list                                 # list all mailboxes
   domani email create --domain myapp.dev --slug hi  # create hi@myapp.dev
   domani email inbox --from hi@myapp.dev            # view inbox
+  domani email folders hi@myapp.dev                 # folder counts
+  domani email archive hi@myapp.dev --message-ids m1,m2
   domani email send --from hi@myapp.dev --to bob@x.com --subject "Hello" --text "Hi Bob"
   domani email setup myapp.dev                      # setup email for domain
   domani email status myapp.dev                     # check email DNS health
@@ -406,6 +421,9 @@ Examples:
   .option("--url <url>", "Webhook URL (for webhook)")
   .option("--forward-to <email>", "Email address to forward inbound emails to (for forward)")
   .option("--direction <dir>", "Filter messages: in or out")
+  .option("--folder <folder>", "System folder: inbox, archive, sent, spam, trash")
+  .option("--view <view>", "Virtual view: starred or all")
+  .option("--message-ids <ids>", "Comma-separated message IDs for lifecycle actions")
   .option("--limit <n>", "Limit results")
   .option("--check", "Verify email DNS health (MX, SPF, DKIM, DMARC)")
   .option("--dry-run", "Show what would happen without executing")

@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { APP_URL } from "./brand.js";
+import { keychainAvailable, keychainGet, keychainSet, keychainDelete } from "./keychain.js";
 
 const CONFIG_DIR = process.env.DOMANI_CONFIG_DIR || path.join(os.homedir(), ".domani");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
@@ -20,6 +21,8 @@ interface Config {
   token?: string;
   email?: string;
   api_url?: string;
+  /** True when the token lives in the OS keychain instead of this file. */
+  token_in_keychain?: boolean;
 }
 
 export function getConfig(): Config {
@@ -32,11 +35,18 @@ export function getConfig(): Config {
 }
 
 export function saveConfig(config: Config): void {
+  // Prefer the OS keychain for the secret; the config file then only holds
+  // non-sensitive settings + a marker. Plaintext file is the fallback for
+  // platforms without a keychain (perms 0600 either way).
+  if (config.token && keychainAvailable() && keychainSet(config.token)) {
+    config = { ...config, token: undefined, token_in_keychain: true };
+  }
   fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), { mode: 0o600 });
 }
 
 export function clearConfig(): void {
+  keychainDelete();
   try {
     fs.unlinkSync(CONFIG_FILE);
   } catch {
@@ -49,7 +59,13 @@ export function getApiUrl(): string {
 }
 
 export function getToken(): string | undefined {
-  return process.env.DOMANI_API_KEY || getConfig().token;
+  if (process.env.DOMANI_API_KEY) return process.env.DOMANI_API_KEY;
+  const config = getConfig();
+  // Legacy plaintext token wins if present (pre-keychain installs); it is
+  // migrated into the keychain on the next saveConfig (e.g. next login).
+  if (config.token) return config.token;
+  if (config.token_in_keychain) return keychainGet();
+  return undefined;
 }
 
 export function requireToken(): string {

@@ -1,8 +1,8 @@
 {
-  "name": "domani",
-  "version": "0.4.14",
+  "name": "domani-cli",
+  "version": "0.4.20",
   "type": "module",
-  "description": "Domain infrastructure for AI agents. Search, register, DNS, email, connect - all from your terminal.",
+  "description": "Domain infrastructure for AI agents. Search, register, DNS, email, connect - all from your terminal. Installs the `domani` command.",
   "license": "MIT",
   "author": "domani.run",
   "homepage": "https://domani.run",

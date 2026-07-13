@@ -10,31 +10,12 @@ export async function transfer(
   options: { authCode?: string; yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string }
 ): Promise<void> {
   requireValidDomain(domain, options);
-  if (!options.authCode) {
-    if (options.json || !process.stdout.isTTY) {
-      fail("--auth-code is required", {
-        hint: "Get the EPP/auth code from your current registrar.",
-        code: "validation_error",
-        json: options.json,
-        fields: options.fields,
-      });
-    }
-    const code = await text({
-      message: "Enter the EPP/auth code from your current registrar:",
-      validate: (v) => (!v || v.trim().length === 0 ? "Auth code is required" : undefined),
-    });
-    if (isCancel(code)) {
-      process.exit(0);
-    }
-    options.authCode = code as string;
-  }
-
   const s = createSpinner(!options.json);
 
-  // Pre-check eligibility before asking for confirmation
-  s.start(`Checking transfer eligibility for ${fmt.domain(domain)}`);
+  // Inspect registrar and DNS continuity before asking for an EPP code.
+  s.start(`Planning safe adoption for ${fmt.domain(domain)}`);
 
-  const checkRes = await apiRequest(`/api/domains/transfer-check?domain=${encodeURIComponent(domain)}`);
+  const checkRes = await apiRequest(`/api/domains/adoption-plan?domain=${encodeURIComponent(domain)}`);
   const check = await checkRes.json();
 
   if (!checkRes.ok) {
@@ -42,10 +23,10 @@ export async function transfer(
     fail(check.error, { hint: check.hint, status: checkRes.status, json: options.json, fields: options.fields });
   }
 
-  if (!check.eligible) {
+  if (!check.options?.transfer?.eligible) {
     s.stop(`${S.error} Not eligible`);
-    fail(check.reason || "Domain is not eligible for transfer.", {
-      hint: check.hint,
+    fail(check.options?.transfer?.reason || "Domain is not eligible for transfer.", {
+      hint: check.warnings?.join(" "),
       code: "not_eligible",
       json: options.json,
       fields: options.fields,
@@ -58,21 +39,50 @@ export async function transfer(
     return dryRunOut("transfer", {
       domain,
       eligible: true,
-      price: check.price,
-      currency: check.currency || "USD",
+      price: check.options.transfer.price,
+      currency: check.options.transfer.currency || "USD",
       includes_renewal: true,
+      preserves_nameservers: true,
+      migrates_dns: false,
+      nameservers: check.current.nameservers,
+      dns_provider: check.current.dns_provider,
+      dnssec_enabled: check.current.dnssec_enabled,
     }, options.json, options.fields);
   }
 
   if (!skipConfirm(options)) {
-    const price = check.price != null ? ` for ${fmt.price(check.price.toFixed(2))}` : "";
+    heading("Transfer Safety Plan");
+    row("Registrar", check.current.registrar || "Unknown");
+    row("DNS provider", check.current.dns_provider);
+    row("Nameservers", `${check.current.nameservers.length} preserved`);
+    row("DNSSEC", check.current.dnssec_enabled ? pc.yellow("Enabled, DS will be verified") : "Not enabled");
+    row("DNS migration", "Not requested");
+    blank();
+    const price = check.options.transfer.price != null ? ` for ${fmt.price(check.options.transfer.price.toFixed(2))}` : "";
     const ok = await clackConfirm({
-      message: `Transfer ${pc.bold(domain)} to ${APP_DOMAIN}${price}? (includes 1 year renewal)`,
+      message: `Transfer ${pc.bold(domain)} to ${APP_DOMAIN}${price}? Nameservers stay unchanged and 1 year is included.`,
     });
     if (!ok || typeof ok === "symbol") {
       console.log(`  ${pc.dim("Cancelled.")}`);
       return;
     }
+  }
+
+  if (!options.authCode) {
+    if (options.json || !process.stdout.isTTY) {
+      fail("--auth-code is required", {
+        hint: "The safety plan passed. Get the EPP/auth code from the current registrar and retry.",
+        code: "validation_error",
+        json: options.json,
+        fields: options.fields,
+      });
+    }
+    const code = await text({
+      message: "Enter the EPP/auth code from your current registrar:",
+      validate: (value) => (!value || value.trim().length === 0 ? "Auth code is required" : undefined),
+    });
+    if (isCancel(code)) process.exit(0);
+    options.authCode = code as string;
   }
 
   s.start(`Initiating transfer for ${fmt.domain(domain)}`);

@@ -23,13 +23,13 @@ All interfaces share the same API key and the same data.
 ## Install
 
 ```bash
-npm install -g domani
+npm install -g domani-cli
 ```
 
-Or run directly with `npx`:
+This installs the `domani` command. Or run directly with `npx`:
 
 ```bash
-npx domani search myapp .com .dev .ai
+npx domani-cli search myapp .com .dev .ai
 ```
 
 ## Quick start
@@ -96,7 +96,8 @@ domani schema buy --json
 domani search <name> [tlds...]    Check availability across TLDs (--expand for 30+)
 domani suggest <prompt>           AI-powered domain suggestions (--style, --lang, --tlds)
 domani buy <domains...>           Purchase one or more domains
-domani transfer <domain>          Transfer from another registrar
+domani adopt <domain>             Inspect and plan a safe connection or transfer
+domani transfer <domain>          Transfer registration, preserving current nameservers
 domani renew <domain>             Renew a domain (--years 1-10)
 domani import <domain>            Import a domain you own elsewhere (DNS monitoring only)
 domani list                       List your domains
@@ -111,7 +112,12 @@ domani whois <domain>             WHOIS/RDAP lookup
 domani email list                    List all mailboxes
 domani email create user@domain      Create a mailbox
 domani email delete user@domain      Delete a mailbox
-domani email inbox user@domain       List messages (--direction in|out)
+domani email inbox user@domain       List messages (--folder, --view, --direction)
+domani email folders user@domain     List folder and view counts
+domani email archive user@domain --message-ids m1,m2
+domani email trash user@domain --message-ids m1
+domani email restore user@domain --message-ids m1
+domani email read|unread|star|unstar user@domain --message-ids m1,m2
 domani email send user@domain        Send an email (--to, --subject, --body, --cc, --bcc)
 domani email forward user@domain     Forward inbound to a personal address (--forward-to)
 domani email webhook user@domain     Forward inbound as JSON to your endpoint (--url)
