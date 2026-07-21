@@ -179,6 +179,7 @@ program
   .option("--name <name>", "Token name (for create)")
   .option("--scopes <scopes>", "Comma-separated permission scopes (for create)")
   .option("--expires-in <seconds>", "Token lifetime in seconds (for create, min 3600)")
+  .option("--agent-identity <id>", "Bind this token to an owned agent identity")
   .option("--token-id <id>", "Token ID (for revoke)")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
@@ -186,6 +187,7 @@ program
 Examples:
   domani tokens list                                    # list all tokens
   domani tokens create --name "CI" --scopes "domains:read,search"
+  domani tokens create --name "Support agent" --agent-identity agent_abc123
   domani tokens revoke --token-id tok_abc123`)
   .action(tokens);
 

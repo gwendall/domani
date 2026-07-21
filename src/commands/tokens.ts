@@ -10,6 +10,7 @@ export async function tokens(
     name?: string;
     scopes?: string;
     expiresIn?: string;
+    agentIdentity?: string;
     tokenId?: string;
   },
 ): Promise<void> {
@@ -58,7 +59,7 @@ async function listTokens(json?: boolean, fields?: string): Promise<void> {
 
   blank();
   heading("API Tokens");
-  const rows = data.tokens.map((t: { id: string; name: string; key: string; scopes: string[]; expiresAt: string | null; expired: boolean; lastUsed: string | null; createdAt: string }) => {
+  const rows = data.tokens.map((t: { id: string; name: string; key: string; scopes: string[]; expiresAt: string | null; expired: boolean; lastUsed: string | null; createdAt: string; agent_identity?: { name: string | null; slug: string } | null }) => {
     let expiry: string;
     if (t.expired) {
       expiry = pc.red("Expired");
@@ -73,17 +74,18 @@ async function listTokens(json?: boolean, fields?: string): Promise<void> {
     return [
       pc.dim(t.id),
       pc.bold(t.name),
+      t.agent_identity ? pc.dim(t.agent_identity.name || t.agent_identity.slug) : pc.dim("—"),
       scopeStr,
       expiry,
     ];
   });
-  table(["ID", "Name", "Scopes", "Expiration"], rows, [28, 16, 32, 20]);
+  table(["ID", "Name", "Agent", "Scopes", "Expiration"], rows, [28, 16, 18, 32, 20]);
   blank();
 }
 
 // ── Create ────────────────────────────────────────────
 
-async function createToken(options: { json?: boolean; fields?: string; name?: string; scopes?: string; expiresIn?: string }): Promise<void> {
+async function createToken(options: { json?: boolean; fields?: string; name?: string; scopes?: string; expiresIn?: string; agentIdentity?: string }): Promise<void> {
   const body: Record<string, unknown> = {};
   if (options.name) body.name = options.name;
   if (options.scopes) {
@@ -96,6 +98,7 @@ async function createToken(options: { json?: boolean; fields?: string; name?: st
     }
     body.expires_in = seconds;
   }
+  if (options.agentIdentity) body.agent_identity_id = options.agentIdentity;
 
   const s = createSpinner(!options.json);
   s.start("Creating token");
@@ -123,6 +126,7 @@ async function createToken(options: { json?: boolean; fields?: string; name?: st
   row("ID", data.id);
   row("Name", data.name);
   row("Scopes", data.scopes?.includes("*") ? "All (full access)" : data.scopes?.join(", ") || "All");
+  if (data.agent_identity) row("Agent", data.agent_identity.name || data.agent_identity.slug);
   row("Expires", data.expiresAt ? new Date(data.expiresAt).toLocaleString() : "Never");
   blank();
   console.log(`  ${pc.yellow("!")} ${pc.bold("Key:")} ${data.key}`);
