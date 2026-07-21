@@ -48,6 +48,7 @@ import { update } from "./commands/update.js";
 import { uninstall } from "./commands/uninstall.js";
 import { schema } from "./commands/schema.js";
 import { cardList, cardAdd, cardRemove } from "./commands/card.js";
+import { workspace } from "./commands/workspace.js";
 const program = new Command();
 
 program
@@ -424,12 +425,45 @@ Examples:
   .option("--folder <folder>", "System folder: inbox, archive, sent, spam, trash")
   .option("--view <view>", "Virtual view: starred or all")
   .option("--message-ids <ids>", "Comma-separated message IDs for lifecycle actions")
+  .option("--mailbox-ids <ids>", "Comma-separated mailbox IDs for shared inbox work")
+  .option("--thread-key <key>", "Stable email thread key")
+  .option("--status <status>", "Workflow status: open, waiting, or closed")
+  .option("--assigned <filter>", "Assignment filter: mine, unassigned, or all")
+  .option("--assignee-type <type>", "Assignee type: member, token, or agent")
+  .option("--assignee-id <id>", "Assignee ID")
+  .option("--conversation-id <id>", "Conversation state ID")
+  .option("--note <text>", "Private note text")
+  .option("--version <number>", "Conversation version for safe updates")
   .option("--limit <n>", "Limit results")
   .option("--check", "Verify email DNS health (MX, SPF, DKIM, DMARC)")
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
   .action(email);
+
+program
+  .command("workspace [action]")
+  .description("Manage shared workspaces, members, and mailbox access")
+  .option("--id <id>", "Workspace ID")
+  .option("--name <name>", "Workspace name")
+  .option("--email <email>", "Collaborator email")
+  .option("--role <role>", "Workspace role: admin or member")
+  .option("--mailboxes <ids>", "Comma-separated mailbox IDs")
+  .option("--mailbox-role <role>", "Mailbox role: viewer, responder, or manager")
+  .option("--token <token>", "Invitation token")
+  .option("--plan <plan>", "Mailzero plan: mail_solo, mail_team, or mail_business")
+  .option("--no-open", "Do not open checkout in a browser")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani workspace list
+  domani workspace create --name Acme
+  domani workspace show --id ws_123
+  domani workspace invite --id ws_123 --email person@example.com --mailboxes mb_1,mb_2
+  domani workspace accept --token <invitation-token>
+  domani workspace checkout --id ws_123 --plan mail_team`)
+  .action(workspace);
 
 program
   .command("dns [domain] [action] [type] [name] [value]")

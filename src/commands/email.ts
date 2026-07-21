@@ -22,7 +22,7 @@ import { requireValidDomain } from "../validate.js";
 import { pickDomain } from "../prompt.js";
 
 /** Known subcommands (used for legacy detection) */
-const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect"];
+const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "note"];
 
 /** Provider display names */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -63,6 +63,15 @@ interface EmailOptions {
   limit?: string;
   body?: string;
   from?: string;
+  mailboxIds?: string;
+  threadKey?: string;
+  status?: string;
+  assigned?: string;
+  assigneeType?: string;
+  assigneeId?: string;
+  conversationId?: string;
+  note?: string;
+  version?: string;
 }
 
 function recordCells(r: DnsRecord): string[] {
@@ -170,18 +179,67 @@ export async function email(
       return webhookCli(options);
     case "forward":
       return forwardCli(options);
+    case "work":
+      return collaborationListCli(options);
+    case "triage":
+      return collaborationUpdateCli(options);
+    case "note":
+      return collaborationNoteCli(options);
     case "check":
       return checkEmailHealth(options.domain || await pickDomain(), !!options.json, options.fields);
     case "connect":
       return connectProvider(options.domain || await pickDomain(), arg2 || undefined, !!options.json, options.fields);
     default:
       fail(`Unknown action: ${action}`, {
-        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, create, delete, send, forward, webhook, setup, status, check, connect",
+        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, create, delete, send, forward, webhook, work, triage, note, setup, status, check, connect",
         code: "validation_error",
         json: options.json,
         fields: options.fields,
       });
   }
+}
+
+async function collaborationListCli(options: EmailOptions): Promise<void> {
+  const mailboxIds = (options.mailboxIds || "").split(",").map((value) => value.trim()).filter(Boolean);
+  if (!mailboxIds.length) fail("Mailbox IDs required", { hint: "Usage: domani email work --mailbox-ids mb_1,mb_2", code: "validation_error", json: options.json, fields: options.fields });
+  const params = new URLSearchParams({ mailbox_ids: mailboxIds.join(",") });
+  if (options.status) params.set("status", options.status);
+  if (options.assigned) params.set("assigned", options.assigned);
+  const response = await apiRequest(`/api/email/collaboration?${params}`);
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading("Shared Inbox Work");
+  if (!data.conversations.length) return console.log(`  ${pc.dim("No persisted workflow state yet.")}`);
+  table(["ID", "Status", "Assignee", "Subject"], data.conversations.map((item: { id: string; status: string; assignee: { label: string } | null; subject: string | null }) => [item.id, item.status, item.assignee?.label || "Unassigned", item.subject || "(no subject)"]), [28, 10, 28, 48]);
+}
+
+async function collaborationUpdateCli(options: EmailOptions): Promise<void> {
+  if (!options.mailboxIds || !options.threadKey) fail("Mailbox ID and thread key required", { hint: "Usage: domani email triage --mailbox-ids mb_1 --thread-key <key> --status closed", code: "validation_error", json: options.json, fields: options.fields });
+  const assignee = options.assigneeId && options.assigneeType ? { type: options.assigneeType, id: options.assigneeId } : undefined;
+  const response = await apiRequest("/api/email/collaboration", {
+    method: "PATCH",
+    body: JSON.stringify({
+      mailbox_id: options.mailboxIds.split(",")[0],
+      thread_key: options.threadKey,
+      status: options.status,
+      assignee,
+      version: options.version ? Number.parseInt(options.version, 10) : undefined,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading("Conversation Updated"); row("Status", data.status); row("Assignee", data.assignee?.label || "Unassigned"); row("Version", data.version);
+}
+
+async function collaborationNoteCli(options: EmailOptions): Promise<void> {
+  if (!options.conversationId || !options.note) fail("Conversation ID and note required", { hint: "Usage: domani email note --conversation-id conv_1 --note \"Waiting for finance\"", code: "validation_error", json: options.json, fields: options.fields });
+  const response = await apiRequest(`/api/email/collaboration/${encodeURIComponent(options.conversationId)}/notes`, { method: "POST", body: JSON.stringify({ body: options.note }) });
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  console.log(`${S.success} Private note added`);
 }
 
 // ── Setup ──────────────────────────────────────────
