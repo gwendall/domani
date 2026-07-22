@@ -428,6 +428,7 @@ Examples:
   .option("--view <view>", "Virtual view: starred or all")
   .option("--message-ids <ids>", "Comma-separated message IDs for lifecycle actions")
   .option("--mailbox-ids <ids>", "Comma-separated mailbox IDs for shared inbox work")
+  .option("--workspace <id>", "Create the mailbox inside this workspace (owner-only)")
   .option("--thread-key <key>", "Stable email thread key")
   .option("--status <status>", "Workflow status: open, waiting, or closed")
   .option("--assigned <filter>", "Assignment filter: mine, unassigned, or all")
@@ -453,6 +454,9 @@ program
   .option("--mailboxes <ids>", "Comma-separated mailbox IDs")
   .option("--mailbox-role <role>", "Mailbox role: viewer, responder, or manager")
   .option("--token <token>", "Invitation token")
+  .option("--membership-id <id>", "Target workspace membership ID")
+  .option("--transfer-id <id>", "Pending ownership transfer ID")
+  .option("--mailbox-id <id>", "Mailbox ID to adopt into the workspace")
   .option("--plan <plan>", "Mailzero plan: mail_solo, mail_team, or mail_business")
   .option("--no-open", "Do not open checkout in a browser")
   .option("--json", "Output as JSON")
@@ -464,6 +468,9 @@ Examples:
   domani workspace show --id ws_123
   domani workspace invite --id ws_123 --email person@example.com --mailboxes mb_1,mb_2
   domani workspace accept --token <invitation-token>
+  domani workspace transfer --id ws_123 --membership-id mem_123
+  domani workspace accept-ownership --token <ownership-token>
+  domani workspace adopt-mailbox --id ws_123 --mailbox-id mb_123
   domani workspace checkout --id ws_123 --plan mail_team`)
   .action(workspace);
 

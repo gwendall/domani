@@ -72,6 +72,7 @@ interface EmailOptions {
   conversationId?: string;
   note?: string;
   version?: string;
+  workspace?: string;
 }
 
 function recordCells(r: DnsRecord): string[] {
@@ -411,7 +412,7 @@ async function listMailboxesCli(options: EmailOptions): Promise<void> {
 async function createMailboxCli(options: EmailOptions): Promise<void> {
   const domain = await requireDomain(options);
   if (options.dryRun) {
-    return dryRunOut("email_create_mailbox", { domain, slug: options.slug }, options.json, options.fields);
+    return dryRunOut("email_create_mailbox", { domain, slug: options.slug, workspace_id: options.workspace }, options.json, options.fields);
   }
 
   let slug = options.slug;
@@ -430,7 +431,7 @@ async function createMailboxCli(options: EmailOptions): Promise<void> {
 
   let res = await apiRequest(`/api/emails`, {
     method: "POST",
-    body: JSON.stringify({ address }),
+    body: JSON.stringify({ address, workspace_id: options.workspace }),
   });
   let data = await res.json();
 
@@ -473,7 +474,7 @@ async function createMailboxCli(options: EmailOptions): Promise<void> {
     while (res.status === 202 && attempts < 60) {
       await sleep(15000);
       attempts++;
-      res = await apiRequest(`/api/emails`, { method: "POST", body: JSON.stringify({ address }) });
+      res = await apiRequest(`/api/emails`, { method: "POST", body: JSON.stringify({ address, workspace_id: options.workspace }) });
       data = await res.json();
       if (res.status !== 202 && !res.ok) {
         pt.stop();

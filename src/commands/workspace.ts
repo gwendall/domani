@@ -14,6 +14,9 @@ interface WorkspaceOptions {
   open?: boolean;
   json?: boolean;
   fields?: string;
+  membershipId?: string;
+  transferId?: string;
+  mailboxId?: string;
 }
 
 async function request(path: string, options: RequestInit | undefined, config: WorkspaceOptions, label: string) {
@@ -94,6 +97,41 @@ export async function workspace(action: string | undefined, options: WorkspaceOp
     return;
   }
 
+  if (action === "transfer") {
+    if (!options.id || !options.membershipId) fail("Workspace ID and target membership ID required", { hint: "Usage: domani workspace transfer --id <workspace-id> --membership-id <membership-id>", code: "validation_error", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/ownership-transfer`, {
+      method: "POST",
+      body: JSON.stringify({ membership_id: options.membershipId }),
+    }, options, "Requesting ownership transfer");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Ownership Transfer Requested"); row("To", data.to_email); row("Expires", data.expires_at); row("Billing", data.billing); blank();
+    return;
+  }
+
+  if (action === "accept-ownership") {
+    if (!options.token) fail("Ownership transfer token required", { hint: "Usage: domani workspace accept-ownership --token <token>", code: "validation_error", json: options.json });
+    const data = await request("/api/workspaces/ownership-transfers/accept", { method: "POST", body: JSON.stringify({ token: options.token }) }, options, "Accepting ownership");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Ownership Transferred"); row("Workspace", data.workspace_id); row("Domains", data.domains_transferred); row("Mailboxes", data.mailboxes_transferred); row("Previous owner", data.previous_owner_role); blank();
+    return;
+  }
+
+  if (action === "revoke-transfer") {
+    if (!options.id || !options.transferId) fail("Workspace ID and transfer ID required", { hint: "Usage: domani workspace revoke-transfer --id <workspace-id> --transfer-id <transfer-id>", code: "validation_error", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/ownership-transfer/${encodeURIComponent(options.transferId)}`, { method: "DELETE" }, options, "Revoking ownership transfer");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Ownership Transfer Revoked"); row("Transfer", data.transfer_id); blank();
+    return;
+  }
+
+  if (action === "adopt-mailbox") {
+    if (!options.id || !options.mailboxId) fail("Workspace ID and mailbox ID required", { hint: "Usage: domani workspace adopt-mailbox --id <workspace-id> --mailbox-id <mailbox-id>", code: "validation_error", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/mailboxes`, { method: "POST", body: JSON.stringify({ mailbox_id: options.mailboxId }) }, options, "Adopting mailbox boundary");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading(data.adopted ? "Mailbox Boundary Adopted" : "Already in Workspace"); row("Address", data.address); row("Mailboxes", data.mailbox_ids?.length ?? 1); blank();
+    return;
+  }
+
   if (action === "checkout") {
     if (!options.id || !options.plan) fail("Workspace ID and plan required", { hint: "Usage: domani workspace checkout --id <id> --plan mail_team", code: "validation_error", json: options.json });
     const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/billing/checkout`, {
@@ -118,7 +156,7 @@ export async function workspace(action: string | undefined, options: WorkspaceOp
   }
 
   fail(`Unknown action: ${action}`, {
-    hint: "Actions: list, create, show, invite, accept, checkout, cancel",
+    hint: "Actions: list, create, show, invite, accept, transfer, accept-ownership, revoke-transfer, adopt-mailbox, checkout, cancel",
     code: "validation_error",
     json: options.json,
     fields: options.fields,
