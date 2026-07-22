@@ -22,7 +22,7 @@ import { requireValidDomain } from "../validate.js";
 import { pickDomain } from "../prompt.js";
 
 /** Known subcommands (used for legacy detection) */
-const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "note"];
+const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity"];
 
 /** Provider display names */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -186,13 +186,17 @@ export async function email(
       return collaborationUpdateCli(options);
     case "note":
       return collaborationNoteCli(options);
+    case "notes":
+      return collaborationNotesCli(options);
+    case "activity":
+      return collaborationActivityCli(options);
     case "check":
       return checkEmailHealth(options.domain || await pickDomain(), !!options.json, options.fields);
     case "connect":
       return connectProvider(options.domain || await pickDomain(), arg2 || undefined, !!options.json, options.fields);
     default:
       fail(`Unknown action: ${action}`, {
-        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, create, delete, send, forward, webhook, work, triage, note, setup, status, check, connect",
+        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, create, delete, send, forward, webhook, work, triage, notes, note, activity, setup, status, check, connect",
         code: "validation_error",
         json: options.json,
         fields: options.fields,
@@ -241,6 +245,28 @@ async function collaborationNoteCli(options: EmailOptions): Promise<void> {
   if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
   if (options.json) return jsonOut(data, options.fields);
   console.log(`${S.success} Private note added`);
+}
+
+async function collaborationNotesCli(options: EmailOptions): Promise<void> {
+  if (!options.conversationId) fail("Conversation ID required", { hint: "Usage: domani email notes --conversation-id conv_1", code: "validation_error", json: options.json, fields: options.fields });
+  const response = await apiRequest(`/api/email/collaboration/${encodeURIComponent(options.conversationId)}/notes`);
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading("Private Notes");
+  if (!data.notes.length) return console.log(`  ${pc.dim("No private notes yet.")}`);
+  table(["Author", "Created", "Note"], data.notes.map((item: { author: { label: string }; created_at: string; body: string }) => [item.author.label, item.created_at, item.body]), [28, 24, 64]);
+}
+
+async function collaborationActivityCli(options: EmailOptions): Promise<void> {
+  if (!options.conversationId) fail("Conversation ID required", { hint: "Usage: domani email activity --conversation-id conv_1", code: "validation_error", json: options.json, fields: options.fields });
+  const response = await apiRequest(`/api/email/collaboration/${encodeURIComponent(options.conversationId)}/activity`);
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading("Conversation Activity");
+  if (!data.activity.length) return console.log(`  ${pc.dim("No activity yet.")}`);
+  table(["Type", "Actor", "Created"], data.activity.map((item: { type: string; actor: { label: string }; created_at: string }) => [item.type, item.actor.label, item.created_at]), [36, 32, 24]);
 }
 
 // ── Setup ──────────────────────────────────────────

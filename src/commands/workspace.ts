@@ -15,6 +15,7 @@ interface WorkspaceOptions {
   json?: boolean;
   fields?: string;
   membershipId?: string;
+  invitationId?: string;
   transferId?: string;
   mailboxId?: string;
 }
@@ -73,6 +74,14 @@ export async function workspace(action: string | undefined, options: WorkspaceOp
     return;
   }
 
+  if (action === "rename") {
+    if (!options.id || !options.name) fail("Workspace ID and name required", { hint: "Usage: domani workspace rename --id <id> --name <name>", code: "validation_error", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}`, { method: "PATCH", body: JSON.stringify({ name: options.name }) }, options, "Renaming workspace");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Workspace Renamed"); row("ID", data.id); row("Name", data.name); blank();
+    return;
+  }
+
   if (action === "invite") {
     if (!options.id || !options.email) fail("Workspace ID and email required", { hint: "Usage: domani workspace invite --id <id> --email person@example.com", code: "validation_error", json: options.json });
     const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/invitations`, {
@@ -94,6 +103,38 @@ export async function workspace(action: string | undefined, options: WorkspaceOp
     const data = await request("/api/workspaces/invitations/accept", { method: "POST", body: JSON.stringify({ token: options.token }) }, options, "Accepting invitation");
     if (options.json) return jsonOut(data, options.fields);
     blank(); heading("Workspace Joined"); row("Workspace", data.workspace_name); row("Role", data.role); blank();
+    return;
+  }
+
+  if (action === "revoke-invite") {
+    if (!options.id || !options.invitationId) fail("Workspace ID and invitation ID required", { hint: "Usage: domani workspace revoke-invite --id <id> --invitation-id <id>", code: "validation_error", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/invitations/${encodeURIComponent(options.invitationId)}`, { method: "DELETE" }, options, "Revoking invitation");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Invitation Revoked"); row("Invitation", data.invitation_id); blank();
+    return;
+  }
+
+  if (action === "member-role") {
+    if (!options.id || !options.membershipId || !options.role) fail("Workspace ID, membership ID, and role required", { hint: "Usage: domani workspace member-role --id <id> --membership-id <id> --role admin|member", code: "validation_error", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/members/${encodeURIComponent(options.membershipId)}`, { method: "PATCH", body: JSON.stringify({ role: options.role }) }, options, "Updating member role");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Member Updated"); row("Membership", data.id); row("Role", data.role); blank();
+    return;
+  }
+
+  if (action === "remove-member") {
+    if (!options.id || !options.membershipId) fail("Workspace ID and membership ID required", { hint: "Usage: domani workspace remove-member --id <id> --membership-id <id>", code: "validation_error", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/members/${encodeURIComponent(options.membershipId)}`, { method: "DELETE" }, options, "Removing member and revoking access");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Member Removed"); row("Membership", data.membership_id); blank();
+    return;
+  }
+
+  if (action === "leave") {
+    if (!options.id) fail("Workspace ID required", { hint: "Usage: domani workspace leave --id <id>", code: "validation_error", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/members/me`, { method: "DELETE" }, options, "Leaving workspace and revoking access");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Workspace Left"); row("Workspace", data.workspace_id); blank();
     return;
   }
 
@@ -132,6 +173,22 @@ export async function workspace(action: string | undefined, options: WorkspaceOp
     return;
   }
 
+  if (action === "grant") {
+    if (!options.id || !options.mailboxId || !options.membershipId || !options.role) fail("Workspace, mailbox, membership, and role required", { hint: "Usage: domani workspace grant --id <id> --mailbox-id <id> --membership-id <id> --role viewer|responder|manager", code: "validation_error", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/mailboxes/${encodeURIComponent(options.mailboxId)}/grants`, { method: "PUT", body: JSON.stringify({ membership_id: options.membershipId, role: options.role }) }, options, "Granting mailbox access");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Mailbox Access Granted"); row("Membership", data.membership_id); row("Mailbox", data.mailbox_id); row("Role", data.role); blank();
+    return;
+  }
+
+  if (action === "revoke-grant") {
+    if (!options.id || !options.mailboxId || !options.membershipId) fail("Workspace, mailbox, and membership required", { hint: "Usage: domani workspace revoke-grant --id <id> --mailbox-id <id> --membership-id <id>", code: "validation_error", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/mailboxes/${encodeURIComponent(options.mailboxId)}/grants`, { method: "DELETE", body: JSON.stringify({ membership_id: options.membershipId }) }, options, "Revoking mailbox access");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Mailbox Access Revoked"); row("Membership", data.membership_id); row("Mailbox", data.mailbox_id); blank();
+    return;
+  }
+
   if (action === "checkout") {
     if (!options.id || !options.plan) fail("Workspace ID and plan required", { hint: "Usage: domani workspace checkout --id <id> --plan mail_team", code: "validation_error", json: options.json });
     const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/billing/checkout`, {
@@ -156,7 +213,7 @@ export async function workspace(action: string | undefined, options: WorkspaceOp
   }
 
   fail(`Unknown action: ${action}`, {
-    hint: "Actions: list, create, show, invite, accept, transfer, accept-ownership, revoke-transfer, adopt-mailbox, checkout, cancel",
+    hint: "Actions: list, create, show, rename, invite, accept, revoke-invite, member-role, remove-member, leave, transfer, accept-ownership, revoke-transfer, adopt-mailbox, grant, revoke-grant, checkout, cancel",
     code: "validation_error",
     json: options.json,
     fields: options.fields,

@@ -455,6 +455,7 @@ program
   .option("--mailbox-role <role>", "Mailbox role: viewer, responder, or manager")
   .option("--token <token>", "Invitation token")
   .option("--membership-id <id>", "Target workspace membership ID")
+  .option("--invitation-id <id>", "Pending workspace invitation ID")
   .option("--transfer-id <id>", "Pending ownership transfer ID")
   .option("--mailbox-id <id>", "Mailbox ID to adopt into the workspace")
   .option("--plan <plan>", "Mailzero plan: mail_solo, mail_team, or mail_business")
@@ -466,8 +467,10 @@ Examples:
   domani workspace list
   domani workspace create --name Acme
   domani workspace show --id ws_123
+  domani workspace rename --id ws_123 --name "Customer support"
   domani workspace invite --id ws_123 --email person@example.com --mailboxes mb_1,mb_2
   domani workspace accept --token <invitation-token>
+  domani workspace grant --id ws_123 --mailbox-id mb_1 --membership-id mem_1 --role responder
   domani workspace transfer --id ws_123 --membership-id mem_123
   domani workspace accept-ownership --token <ownership-token>
   domani workspace adopt-mailbox --id ws_123 --mailbox-id mb_123
