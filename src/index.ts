@@ -49,6 +49,7 @@ import { uninstall } from "./commands/uninstall.js";
 import { schema } from "./commands/schema.js";
 import { cardList, cardAdd, cardRemove } from "./commands/card.js";
 import { workspace } from "./commands/workspace.js";
+import { serveMcpBridge } from "./mcp-bridge.js";
 const program = new Command();
 
 program
@@ -87,7 +88,7 @@ program
 
     // Ensure auth before any authenticated command runs.
     // before any command spinner starts, so clack doesn't conflict.
-    const publicCommands = ["login", "logout", "search", "suggest", "tlds", "whois", "schema", "update", "uninstall"];
+    const publicCommands = ["login", "logout", "search", "suggest", "tlds", "whois", "schema", "update", "uninstall", "mcp"];
     if (!publicCommands.includes(actionCommand.name())) {
       await ensureAuth();
     }
@@ -100,9 +101,13 @@ program
   .description(`Log in to ${APP_DOMAIN} (opens browser)`)
   .option("--json", "Output as JSON (returns auth_url for non-interactive approval)")
   .option("--no-open", "Don't open browser (print URL instead)")
+  .option("--scopes <scopes>", "Request a comma-separated, least-privilege scope set")
+  .option("--label <label>", "Human-readable label shown on the approval screen")
+  .option("--expires-in <seconds>", "Delegated credential lifetime in seconds (3600-31536000)")
   .addHelpText("after", `
 Examples:
   domani login                          # interactive login (opens browser)
+  domani login --scopes domains:read,search --label "Project agent" --expires-in 86400
   domani login --json                   # non-interactive (returns auth_url)
   domani login --no-open                # print login URL without opening browser
   DOMANI_API_KEY=domani_sk_xxx domani list  # skip login, use env var`)
@@ -172,6 +177,25 @@ program
   .option("--json", "Output as JSON")
   .option("--reveal", "Print the full key even on an interactive terminal")
   .action(token);
+
+program
+  .command("mcp [action]")
+  .description("Run the secure local MCP bridge (stdio)")
+  .option("--verbose", "Write bridge lifecycle messages to stderr")
+  .addHelpText("after", `
+Examples:
+  domani login                          # authenticate once in your browser
+  domani mcp serve                      # stdio bridge for agent plugins
+
+The bridge reads the API token from the OS keychain. It never prints the token
+or places it in an MCP/plugin configuration file.`)
+  .action(async (action, options) => {
+    if (action && action !== "serve") {
+      fail(`Unknown action: ${action}`, { hint: "Use: domani mcp serve" });
+      return;
+    }
+    await serveMcpBridge({ verbose: options.verbose });
+  });
 
 program
   .command("tokens [action]")

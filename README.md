@@ -13,7 +13,7 @@ domani gives you one account and multiple ways in:
 
 - **[Web](https://domani.run)** - Dashboard with a full inbox (compose, reply, threads), DNS editor, domain management
 - **CLI** - This package. Everything the web app does, from your terminal
-- **[MCP Server](https://domani.run/mcp)** - 65 tools for Claude Code, Cursor, Windsurf, and any MCP-compatible agent
+- **[MCP Server](https://domani.run/mcp)** - typed tools for Claude Code, Cursor, Codex, and any MCP-compatible agent
 - **[OpenClaw](https://openclaw.com)** - `clawhub install domani`
 - **[Agent Skill](https://domani.run/skill.md)** - Step-by-step guide your agent can follow. Install with `npx skills add domani.run`
 - **[REST API](https://domani.run/docs)** - Direct HTTP access to everything
@@ -25,6 +25,30 @@ All interfaces share the same API key and the same data.
 ```bash
 npm install -g domani-cli
 ```
+
+## Secure MCP bridge
+
+Agent plugins can use Domani without placing an API key in a prompt, shell
+history, or editor configuration:
+
+```bash
+domani login
+domani mcp serve
+```
+
+`domani login` stores the credential in the operating-system keychain when one
+is available. The stdio bridge resolves it locally and forwards MCP requests to
+`https://domani.run/mcp`; stdout remains reserved for JSON-RPC messages.
+
+For an agent acting on someone else's behalf, request a scoped, expiring
+credential instead of their account key:
+
+```bash
+domani login --scopes domains:read,search --label "Project agent" --expires-in 86400
+```
+
+The approval screen shows the requested access and the resulting credential is
+stored in the keychain without being printed.
 
 This installs the `domani` command. Or run directly with `npx`:
 
@@ -224,7 +248,8 @@ domani buy myapp.dev                     # Charged to saved card
 |--------|-------------|
 | `domani login` | Interactive login (opens browser) |
 | `$DOMANI_API_KEY` | API key as environment variable |
-| `~/.domani/config.json` | Saved credentials from `domani login` |
+| OS keychain | Credential saved by `domani login` when available |
+| `~/.domani/config.json` | Non-secret CLI settings, plus legacy fallback on systems without a keychain |
 
 The CLI checks `$DOMANI_API_KEY` first, then falls back to `~/.domani/config.json`.
 

@@ -58,13 +58,13 @@ export function getApiUrl(): string {
   return apiUrlOverride || getConfig().api_url || APP_URL;
 }
 
-export function getToken(): string | undefined {
+export function getToken(options: { refreshKeychain?: boolean } = {}): string | undefined {
   if (process.env.DOMANI_API_KEY) return process.env.DOMANI_API_KEY;
   const config = getConfig();
   // Legacy plaintext token wins if present (pre-keychain installs); it is
   // migrated into the keychain on the next saveConfig (e.g. next login).
   if (config.token) return config.token;
-  if (config.token_in_keychain) return keychainGet();
+  if (config.token_in_keychain) return keychainGet({ refresh: options.refreshKeychain });
   return undefined;
 }
 

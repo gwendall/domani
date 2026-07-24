@@ -32,7 +32,8 @@ export function keychainAvailable(): boolean {
   return false;
 }
 
-export function keychainGet(): string | undefined {
+export function keychainGet(options: { refresh?: boolean } = {}): string | undefined {
+  if (options.refresh) cached = undefined;
   if (cached !== undefined) return cached ?? undefined;
   let value: string | undefined;
   if (process.platform === "darwin") {

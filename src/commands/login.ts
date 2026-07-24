@@ -1,18 +1,63 @@
-import { getApiUrl, saveConfig, getConfig } from "../config.js";
+import { getApiUrl, saveConfig, getConfig, getToken } from "../config.js";
 import pc from "picocolors";
 import { S, fmt, blank, hintCommand, createSpinner, openUrl, jsonOut, fail } from "../ui.js";
 
-export async function login(options: { json?: boolean; open?: boolean }): Promise<void> {
+export interface LoginOptions {
+  json?: boolean;
+  open?: boolean;
+  scopes?: string;
+  label?: string;
+  expiresIn?: string;
+}
+
+export function buildLoginRequest(options: LoginOptions): {
+  body: { scopes?: string[]; label?: string; expires_in?: number };
+  delegated: boolean;
+} {
+  const scopes = options.scopes
+    ?.split(",")
+    .map((scope) => scope.trim())
+    .filter(Boolean);
+  const delegated = Boolean(scopes?.length || options.label || options.expiresIn);
+  const expiresIn = options.expiresIn === undefined ? undefined : Number(options.expiresIn);
+  if (
+    expiresIn !== undefined
+    && (!Number.isInteger(expiresIn) || expiresIn < 3600 || expiresIn > 31_536_000)
+  ) {
+    throw new RangeError("--expires-in must be an integer between 3600 and 31536000 seconds");
+  }
+  return {
+    delegated,
+    body: {
+      ...(scopes?.length ? { scopes } : {}),
+      ...(options.label ? { label: options.label } : {}),
+      ...(expiresIn !== undefined ? { expires_in: expiresIn } : {}),
+    },
+  };
+}
+
+export async function login(options: LoginOptions): Promise<void> {
   const apiUrl = getApiUrl();
   const s = createSpinner(!options.json);
+  let request: ReturnType<typeof buildLoginRequest>;
+  try {
+    request = buildLoginRequest(options);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : "Invalid login options", {
+      code: "invalid_expires_in",
+      json: options.json,
+    });
+  }
+  const { body, delegated } = request;
 
   // Check if already logged in
   const config = getConfig();
-  if (config.token) {
+  const existingToken = getToken();
+  if (existingToken && !delegated) {
     s.start("Checking session");
     try {
       const meRes = await fetch(`${apiUrl}/api/me`, {
-        headers: { Authorization: `Bearer ${config.token}` },
+        headers: { Authorization: `Bearer ${existingToken}` },
       });
       if (meRes.ok) {
         const me = await meRes.json();
@@ -34,6 +79,7 @@ export async function login(options: { json?: boolean; open?: boolean }): Promis
   const res = await fetch(`${apiUrl}/api/auth/cli`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {

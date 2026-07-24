@@ -1,6 +1,6 @@
 import { build } from "esbuild";
 import { createHash } from "crypto";
-import { readFileSync, writeFileSync } from "fs";
+import { chmodSync, readFileSync, writeFileSync } from "fs";
 
 const versionData = JSON.parse(readFileSync("version.json", "utf-8"));
 
@@ -15,6 +15,11 @@ await build({
   minify: true,
   define: { __CLI_VERSION__: JSON.stringify(versionData.version) },
 });
+
+// esbuild creates output files with the process umask. Keep the published CLI
+// directly executable on every platform and make the copied web artifact
+// reproducible between macOS and Linux.
+chmodSync("dist/domani.cjs", 0o755);
 
 // Generate SHA-256 hash for integrity verification
 const bundle = readFileSync("dist/domani.cjs");
