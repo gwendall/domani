@@ -73,7 +73,7 @@ interface EmailOptions {
   assigneeId?: string;
   conversationId?: string;
   note?: string;
-  version?: string;
+  ifVersion?: string;
   workspace?: string;
 }
 
@@ -264,7 +264,7 @@ async function collaborationUpdateCli(options: EmailOptions): Promise<void> {
       thread_aliases: options.threadAliases?.split(",").map((value) => value.trim()).filter(Boolean),
       status: options.status,
       assignee,
-      version: options.version ? Number.parseInt(options.version, 10) : undefined,
+      version: options.ifVersion ? Number.parseInt(options.ifVersion, 10) : undefined,
     }),
   });
   const data = await response.json();

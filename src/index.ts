@@ -461,7 +461,7 @@ Examples:
   .option("--assignee-id <id>", "Assignee ID")
   .option("--conversation-id <id>", "Conversation state ID")
   .option("--note <text>", "Private note text")
-  .option("--version <number>", "Conversation version for safe updates")
+  .option("--if-version <number>", "Conversation version for compare-and-set updates")
   .option("--limit <n>", "Limit results")
   .option("--cursor <cursor>", "Opaque pagination or synchronization cursor")
   .option("--check", "Verify email DNS health (MX, SPF, DKIM, DMARC)")
