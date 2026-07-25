@@ -463,6 +463,7 @@ Examples:
   .option("--note <text>", "Private note text")
   .option("--version <number>", "Conversation version for safe updates")
   .option("--limit <n>", "Limit results")
+  .option("--cursor <cursor>", "Opaque pagination or synchronization cursor")
   .option("--check", "Verify email DNS health (MX, SPF, DKIM, DMARC)")
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")

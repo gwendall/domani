@@ -22,7 +22,7 @@ import { requireValidDomain } from "../validate.js";
 import { pickDomain } from "../prompt.js";
 
 /** Known subcommands (used for legacy detection) */
-const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity"];
+const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes"];
 
 /** Provider display names */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -61,6 +61,7 @@ interface EmailOptions {
   view?: string;
   messageIds?: string;
   limit?: string;
+  cursor?: string;
   body?: string;
   from?: string;
   mailboxIds?: string;
@@ -191,18 +192,48 @@ export async function email(
       return collaborationNotesCli(options);
     case "activity":
       return collaborationActivityCli(options);
+    case "changes":
+      return mailboxChangesCli(options);
     case "check":
       return checkEmailHealth(options.domain || await pickDomain(), !!options.json, options.fields);
     case "connect":
       return connectProvider(options.domain || await pickDomain(), arg2 || undefined, !!options.json, options.fields);
     default:
       fail(`Unknown action: ${action}`, {
-        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, create, delete, send, forward, webhook, work, triage, notes, note, activity, setup, status, check, connect",
+        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, create, delete, send, forward, webhook, work, triage, notes, note, activity, changes, setup, status, check, connect",
         code: "validation_error",
         json: options.json,
         fields: options.fields,
       });
   }
+}
+
+async function mailboxChangesCli(options: EmailOptions): Promise<void> {
+  const mailboxId = options.mailboxIds?.split(",").map((value) => value.trim()).filter(Boolean)[0];
+  if (!mailboxId) fail("Mailbox ID required", { hint: "Usage: domani email changes --mailbox-ids mb_1 [--cursor <opaque>]", code: "validation_error", json: options.json, fields: options.fields });
+  const params = new URLSearchParams({ mailbox_id: mailboxId });
+  if (options.cursor) params.set("cursor", options.cursor);
+  if (options.limit) params.set("limit", options.limit);
+  const response = await apiRequest(`/api/email/changes?${params}`);
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading("Mailbox Changes");
+  if (data.requires_full_sync) {
+    row("Full sync", "Required");
+    row("Baseline cursor", data.next_cursor);
+    hint("Take a bounded mailbox snapshot, then call this command again with --cursor to replay concurrent changes.");
+    return;
+  }
+  if (!data.changes.length) console.log(`  ${pc.dim("No changes since this cursor.")}`);
+  else table(["Sequence", "Type", "Resource", "Created"], data.changes.map((item: { sequence: string; type: string; resource_type: string; resource_id: string | null; created_at: string }) => [
+    item.sequence,
+    item.type,
+    `${item.resource_type}:${item.resource_id || "-"}`,
+    item.created_at,
+  ]), [12, 32, 40, 24]);
+  row("Next cursor", data.next_cursor);
+  if (data.has_more) hint("More changes are available; call again with the next cursor.");
 }
 
 async function collaborationListCli(options: EmailOptions): Promise<void> {
