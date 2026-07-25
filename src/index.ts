@@ -454,6 +454,7 @@ Examples:
   .option("--mailbox-ids <ids>", "Comma-separated mailbox IDs for shared inbox work")
   .option("--workspace <id>", "Create the mailbox inside this workspace (owner-only)")
   .option("--thread-key <key>", "Stable email thread key")
+  .option("--thread-aliases <keys>", "Comma-separated legacy thread keys returned by the inbox")
   .option("--status <status>", "Workflow status: open, waiting, or closed")
   .option("--assigned <filter>", "Assignment filter: mine, unassigned, or all")
   .option("--assignee-type <type>", "Assignee type: member, token, or agent")

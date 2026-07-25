@@ -65,6 +65,7 @@ interface EmailOptions {
   from?: string;
   mailboxIds?: string;
   threadKey?: string;
+  threadAliases?: string;
   status?: string;
   assigned?: string;
   assigneeType?: string;
@@ -229,6 +230,7 @@ async function collaborationUpdateCli(options: EmailOptions): Promise<void> {
     body: JSON.stringify({
       mailbox_id: options.mailboxIds.split(",")[0],
       thread_key: options.threadKey,
+      thread_aliases: options.threadAliases?.split(",").map((value) => value.trim()).filter(Boolean),
       status: options.status,
       assignee,
       version: options.version ? Number.parseInt(options.version, 10) : undefined,
