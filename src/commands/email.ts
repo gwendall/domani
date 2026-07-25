@@ -210,13 +210,15 @@ async function collaborationListCli(options: EmailOptions): Promise<void> {
   const params = new URLSearchParams({ mailbox_ids: mailboxIds.join(",") });
   if (options.status) params.set("status", options.status);
   if (options.assigned) params.set("assigned", options.assigned);
-  const response = await apiRequest(`/api/email/collaboration?${params}`);
+  if (options.limit) params.set("limit", options.limit);
+  const response = await apiRequest(`/api/email/work-queue?${params}`);
   const data = await response.json();
   if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
   if (options.json) return jsonOut(data, options.fields);
   heading("Shared Inbox Work");
-  if (!data.conversations.length) return console.log(`  ${pc.dim("No persisted workflow state yet.")}`);
-  table(["ID", "Status", "Assignee", "Subject"], data.conversations.map((item: { id: string; status: string; assignee: { label: string } | null; subject: string | null }) => [item.id, item.status, item.assignee?.label || "Unassigned", item.subject || "(no subject)"]), [28, 10, 28, 48]);
+  if (!data.items.length) return console.log(`  ${pc.dim("No conversations match this queue.")}`);
+  table(["Thread", "Status", "Assignee", "Subject"], data.items.map((item: { thread_key: string; status: string; assignee: { label: string } | null; subject: string | null }) => [item.thread_key, item.status, item.assignee?.label || "Unassigned", item.subject || "(no subject)"]), [28, 10, 28, 48]);
+  if (data.partial) hint("This is a bounded snapshot. Increase --limit or use the API scan_limit when you need a wider queue.");
 }
 
 async function collaborationUpdateCli(options: EmailOptions): Promise<void> {
