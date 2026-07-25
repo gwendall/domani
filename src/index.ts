@@ -614,7 +614,7 @@ program
 program
   .command("webhooks [action]")
   .alias("webhook")
-  .description("Manage webhook endpoints (list/create/update/delete/deliveries/events)")
+  .description("Manage webhook endpoints (list/create/update/delete/deliveries/replay/events)")
   .addHelpText("after", `
 Examples:
   domani webhooks list
@@ -622,10 +622,13 @@ Examples:
   domani webhooks update --webhook-id wh_abc --active off
   domani webhooks delete --webhook-id wh_abc
   domani webhooks deliveries --webhook-id wh_abc
+  domani webhooks replay --webhook-id wh_abc --delivery-id del_abc --idempotency-key incident-2026-07-25
   domani webhooks events                                # list available event types`)
   .option("--url <url>", "Webhook HTTPS URL")
   .option("--events <events>", "Comma-separated event types")
   .option("--webhook-id <id>", "Webhook ID (for update/delete/deliveries)")
+  .option("--delivery-id <id>", "Webhook delivery ID (for replay)")
+  .option("--idempotency-key <key>", "Stable idempotency key (for replay)")
   .option("--active <on|off>", "Enable or disable webhook")
   .option("--limit <n>", "Limit deliveries returned")
   .option("--dry-run", "Show what would happen without executing")

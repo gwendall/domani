@@ -11,6 +11,8 @@ export async function webhooks(
     url?: string;
     events?: string;
     webhookId?: string;
+    deliveryId?: string;
+    idempotencyKey?: string;
     active?: string;
     limit?: string;
   },
@@ -27,11 +29,53 @@ export async function webhooks(
       return deleteWebhook(options);
     case "deliveries":
       return listDeliveries(options);
+    case "replay":
+      return replayDelivery(options);
     case "events":
       return listEvents(options.json, options.fields);
     default:
-      fail(`Unknown action: ${action}`, { hint: "Actions: list, create, update, delete, deliveries, events", code: "validation_error", json: options.json, fields: options.fields });
+      fail(`Unknown action: ${action}`, { hint: "Actions: list, create, update, delete, deliveries, replay, events", code: "validation_error", json: options.json, fields: options.fields });
   }
+}
+
+async function replayDelivery(options: {
+  json?: boolean;
+  fields?: string;
+  webhookId?: string;
+  deliveryId?: string;
+  idempotencyKey?: string;
+}): Promise<void> {
+  if (!options.webhookId || !options.deliveryId || !options.idempotencyKey) {
+    fail("Webhook ID, delivery ID, and idempotency key are required", {
+      hint: "Usage: domani webhooks replay --webhook-id <id> --delivery-id <id> --idempotency-key <stable-key>",
+      code: "validation_error",
+      json: options.json,
+      fields: options.fields,
+    });
+  }
+  const s = createSpinner(!options.json);
+  s.start("Replaying webhook delivery");
+  const res = await apiRequest(
+    `/api/webhooks/${encodeURIComponent(options.webhookId)}/deliveries/${encodeURIComponent(options.deliveryId)}/replay`,
+    {
+      method: "POST",
+      body: JSON.stringify({ idempotency_key: options.idempotencyKey }),
+    },
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    s.stop("Failed");
+    fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+  }
+  s.stop(`${S.success} Webhook replay ${data.status}`);
+  if (options.json) return jsonOut(data, options.fields);
+  heading("Webhook Replay Receipt");
+  row("Delivery", data.delivery_id);
+  row("Original", data.original_delivery_id);
+  row("Status", data.status);
+  row("Attempts", data.attempts);
+  row("Idempotent retry", data.idempotent_replay ? "yes" : "no");
+  blank();
 }
 
 // ── List ──────────────────────────────────────────────
