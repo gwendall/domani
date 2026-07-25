@@ -20,6 +20,7 @@ import {
 } from "../ui.js";
 import { requireValidDomain } from "../validate.js";
 import { pickDomain } from "../prompt.js";
+import { randomUUID } from "node:crypto";
 
 /** Known subcommands (used for legacy detection) */
 const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes"];
@@ -74,6 +75,7 @@ interface EmailOptions {
   conversationId?: string;
   note?: string;
   ifVersion?: string;
+  idempotencyKey?: string;
   workspace?: string;
 }
 
@@ -778,7 +780,10 @@ async function lifecycleActionCli(action: string, options: EmailOptions): Promis
   if (!options.slug) fail("Slug required", { hint: `Usage: domani email ${action} hello@example.com --message-ids id1,id2`, code: "validation_error", json: options.json, fields: options.fields });
   const messageIds = (options.messageIds || "").split(",").map((id) => id.trim()).filter(Boolean);
   if (!messageIds.length) fail("Message IDs required", { hint: "Pass --message-ids id1,id2", code: "validation_error", json: options.json, fields: options.fields });
-  const body: Record<string, unknown> = { message_ids: messageIds };
+  const body: Record<string, unknown> = {
+    message_ids: messageIds,
+    idempotency_key: options.idempotencyKey || randomUUID(),
+  };
   if (action === "archive" || action === "trash") Object.assign(body, { action: "move", destination: action === "archive" ? "archive" : "trash" });
   if (action === "restore") body.action = "restore";
   if (action === "read" || action === "unread") Object.assign(body, { action: "mark_read", read: action === "read" });
@@ -792,6 +797,11 @@ async function lifecycleActionCli(action: string, options: EmailOptions): Promis
   const succeeded = (data.results || []).filter((result: { ok: boolean }) => result.ok).length;
   const failed = (data.results || []).length - succeeded;
   console.log(`${S.success} ${succeeded} updated${failed ? pc.yellow(`, ${failed} failed`) : ""}`);
+  if (data.operation_id) {
+    row("Operation", data.operation_id);
+    row("Idempotency key", data.idempotency_key);
+    if (data.idempotent_replay) row("Receipt", "replayed (no duplicate mutation)");
+  }
 }
 
 // ── Set webhook ──────────────────────────────────

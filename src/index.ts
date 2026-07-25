@@ -462,6 +462,7 @@ Examples:
   .option("--conversation-id <id>", "Conversation state ID")
   .option("--note <text>", "Private note text")
   .option("--if-version <number>", "Conversation version for compare-and-set updates")
+  .option("--idempotency-key <key>", "Stable retry key for mailbox lifecycle actions")
   .option("--limit <n>", "Limit results")
   .option("--cursor <cursor>", "Opaque pagination or synchronization cursor")
   .option("--check", "Verify email DNS health (MX, SPF, DKIM, DMARC)")
