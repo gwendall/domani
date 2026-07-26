@@ -23,7 +23,7 @@ import { pickDomain } from "../prompt.js";
 import { randomUUID } from "node:crypto";
 
 /** Known subcommands (used for legacy detection) */
-const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes"];
+const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes", "coordination", "presence", "release-presence"];
 
 /** Provider display names */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -76,6 +76,10 @@ interface EmailOptions {
   note?: string;
   ifVersion?: string;
   idempotencyKey?: string;
+  clientId?: string;
+  leaseId?: string;
+  mode?: string;
+  acquireLease?: boolean;
   workspace?: string;
 }
 
@@ -196,18 +200,96 @@ export async function email(
       return collaborationActivityCli(options);
     case "changes":
       return mailboxChangesCli(options);
+    case "coordination":
+      return coordinationSnapshotCli(options);
+    case "presence":
+      return coordinationPresenceCli(options);
+    case "release-presence":
+      return coordinationReleaseCli(options);
     case "check":
       return checkEmailHealth(options.domain || await pickDomain(), !!options.json, options.fields);
     case "connect":
       return connectProvider(options.domain || await pickDomain(), arg2 || undefined, !!options.json, options.fields);
     default:
       fail(`Unknown action: ${action}`, {
-        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, create, delete, send, forward, webhook, work, triage, notes, note, activity, changes, setup, status, check, connect",
+        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, create, delete, send, forward, webhook, work, triage, notes, note, activity, changes, coordination, presence, release-presence, setup, status, check, connect",
         code: "validation_error",
         json: options.json,
         fields: options.fields,
       });
   }
+}
+
+function coordinationLocator(options: EmailOptions) {
+  const mailboxId = options.mailboxIds?.split(",").map((value) => value.trim()).filter(Boolean)[0];
+  if (!mailboxId || !options.threadKey) {
+    fail("Mailbox ID and thread key required", {
+      hint: "Pass --mailbox-ids mb_1 --thread-key 'jmap:thread_1'",
+      code: "validation_error",
+      json: options.json,
+      fields: options.fields,
+    });
+  }
+  return { mailboxId, threadKey: options.threadKey };
+}
+
+async function coordinationSnapshotCli(options: EmailOptions): Promise<void> {
+  const { mailboxId, threadKey } = coordinationLocator(options);
+  const params = new URLSearchParams({ mailbox_id: mailboxId, thread_key: threadKey });
+  const response = await apiRequest(`/api/email/collaboration/coordination?${params}`);
+  const data = await response.json();
+  if (!response.ok) fail(data.error || "Could not read coordination", { code: data.code || "api_error", json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading("Conversation Coordination");
+  row("Conversation", data.conversation_id);
+  row("Reply version", String(data.reply_version));
+  row("Presence", String(data.presence?.length || 0));
+  row("Compose lease", data.compose_lease?.holder?.label || "none");
+}
+
+async function coordinationPresenceCli(options: EmailOptions): Promise<void> {
+  const { mailboxId, threadKey } = coordinationLocator(options);
+  if (!options.clientId) fail("Client ID required", { hint: "Pass a stable --client-id for this agent process or app installation", code: "validation_error", json: options.json, fields: options.fields });
+  const mode = options.mode || "viewing";
+  if (!["viewing", "composing"].includes(mode)) fail("Mode must be viewing or composing", { code: "validation_error", json: options.json, fields: options.fields });
+  const response = await apiRequest("/api/email/collaboration/coordination", {
+    method: "PUT",
+    body: JSON.stringify({
+      mailbox_id: mailboxId,
+      thread_key: threadKey,
+      client_id: options.clientId,
+      mode,
+      acquire_lease: options.acquireLease !== false,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) fail(data.error || "Could not heartbeat presence", { code: data.code || "api_error", json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading("Conversation Presence");
+  row("Mode", mode);
+  row("Reply version", String(data.reply_version));
+  row("Lease ID", data.compose_lease?.lease_id || "none");
+  row("Expires", data.compose_lease?.expires_at || data.presence?.find((entry: { client_id: string }) => entry.client_id === options.clientId)?.expires_at || "unknown");
+}
+
+async function coordinationReleaseCli(options: EmailOptions): Promise<void> {
+  const { mailboxId, threadKey } = coordinationLocator(options);
+  if (!options.clientId) fail("Client ID required", { hint: "Pass the same --client-id used for presence", code: "validation_error", json: options.json, fields: options.fields });
+  const response = await apiRequest("/api/email/collaboration/coordination", {
+    method: "DELETE",
+    body: JSON.stringify({
+      mailbox_id: mailboxId,
+      thread_key: threadKey,
+      client_id: options.clientId,
+      lease_id: options.leaseId,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) fail(data.error || "Could not release presence", { code: data.code || "api_error", json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading("Conversation Presence");
+  row("Released", options.clientId);
+  row("Remaining presence", String(data.presence?.length || 0));
 }
 
 async function mailboxChangesCli(options: EmailOptions): Promise<void> {
