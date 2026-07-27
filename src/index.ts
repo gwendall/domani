@@ -489,6 +489,18 @@ program
   .option("--invitation-id <id>", "Pending workspace invitation ID")
   .option("--transfer-id <id>", "Pending ownership transfer ID")
   .option("--mailbox-id <id>", "Mailbox ID to adopt into the workspace")
+  .option("--subject <type:id>", "Access subject: human:id, agent:id, token:id, service:id, or group:id")
+  .option("--resource <type:id>", "Access resource: mailbox:id or collection:id")
+  .option("--profile <profile>", "Access profile: viewer, responder, manager, draft_only, or mail_client")
+  .option("--principals <principals>", "Comma-separated group principals as type:id")
+  .option("--group-id <id>", "Existing access group ID to replace")
+  .option("--collection-id <id>", "Existing mailbox collection ID to replace")
+  .option("--grant-id <id>", "Canonical access grant ID")
+  .option("--apply", "Apply an access plan; the default is dry-run")
+  .option("--expected-version <n>", "Expected grant version for conflict-safe reconciliation")
+  .option("--ownership-disposition <mode>", "Offer ownership: unchanged or claim")
+  .option("--creator-disposition <mode>", "After ownership claim: stay, stay_admin, or leave")
+  .option("--billing-disposition <mode>", "Billing after offer: unchanged, sponsor, or transfer")
   .option("--plan <plan>", "Mailzero plan: mail_solo, mail_team, or mail_business")
   .option("--no-open", "Do not open checkout in a browser")
   .option("--json", "Output as JSON")
@@ -498,6 +510,11 @@ Examples:
   domani workspace list
   domani workspace create --name Acme
   domani workspace show --id ws_123
+  domani workspace access --id ws_123
+  domani workspace collection --id ws_123 --name Support --mailboxes mb_1,mb_2
+  domani workspace group --id ws_123 --name Agents --principals agent:a_1,agent:a_2
+  domani workspace access --id ws_123 --subject group:g_1 --resource collection:c_1 --profile responder --apply
+  domani workspace offer --id ws_123 --email person@example.com --mailboxes mb_1,mb_2 --profile responder
   domani workspace rename --id ws_123 --name "Customer support"
   domani workspace invite --id ws_123 --email person@example.com --mailboxes mb_1,mb_2
   domani workspace accept --token <invitation-token>

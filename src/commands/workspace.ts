@@ -18,6 +18,18 @@ interface WorkspaceOptions {
   invitationId?: string;
   transferId?: string;
   mailboxId?: string;
+  subject?: string;
+  resource?: string;
+  profile?: string;
+  principals?: string;
+  groupId?: string;
+  collectionId?: string;
+  apply?: boolean;
+  expectedVersion?: string;
+  grantId?: string;
+  ownershipDisposition?: string;
+  creatorDisposition?: string;
+  billingDisposition?: string;
 }
 
 async function request(path: string, options: RequestInit | undefined, config: WorkspaceOptions, label: string) {
@@ -71,6 +83,120 @@ export async function workspace(action: string | undefined, options: WorkspaceOp
     blank(); heading(data.name); row("Role", data.role); row("Mailboxes", data.mailboxes.length); row("Members", data.members.length); blank();
     table(["Email", "Role", "Mailbox grants"], data.members.map((member: { email: string; role: string; mailbox_grants: unknown[] }) => [member.email, member.role, String(member.mailbox_grants.length)]), [42, 12, 16]);
     blank();
+    return;
+  }
+
+  if (action === "access") {
+    if (!options.id) fail("Workspace ID required", { hint: "Usage: domani workspace access --id <id>", code: "validation_error", json: options.json });
+    if (!options.subject && !options.resource && !options.profile) {
+      const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/access`, undefined, options, "Loading access graph");
+      if (options.json) return jsonOut(data, options.fields);
+      blank(); heading("Access Graph");
+      row("Principals", data.principals.length); row("Mailboxes", data.mailboxes.length);
+      row("Groups", data.groups.length); row("Collections", data.collections.length);
+      row("Active grants", data.grants.length); row("Pending offers", data.offers.length); blank();
+      return;
+    }
+    if (!options.subject || !options.resource || !options.profile) {
+      fail("Subject, resource, and profile are required together", {
+        hint: "Usage: domani workspace access --id <id> --subject human:<id> --resource mailbox:<id> --profile responder [--apply]",
+        code: "validation_error",
+        json: options.json,
+      });
+    }
+    const [subjectType, subjectId] = options.subject.split(":", 2);
+    const [resourceType, resourceId] = options.resource.split(":", 2);
+    if (!subjectId || !["human", "agent", "service", "token", "group"].includes(subjectType)) fail("Invalid --subject", { hint: "Use human:<id>, agent:<id>, service:<id>, token:<id>, or group:<id>", json: options.json });
+    if (!resourceId || !["mailbox", "collection"].includes(resourceType)) fail("Invalid --resource", { hint: "Use mailbox:<id> or collection:<id>", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/access`, {
+      method: "PUT",
+      body: JSON.stringify({
+        mode: options.apply ? "apply" : "plan",
+        subject: subjectType === "group"
+          ? { type: "group", id: subjectId }
+          : { type: "principal", principal: { type: subjectType, id: subjectId } },
+        resource: { type: resourceType, id: resourceId },
+        profile: options.profile,
+        expected_version: options.expectedVersion ? Number(options.expectedVersion) : undefined,
+      }),
+    }, options, options.apply ? "Applying access" : "Planning access");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading(options.apply ? "Access Applied" : "Access Plan");
+    row("Action", data.action); row("Changed", String(data.changed)); if (data.grant_id) row("Grant", data.grant_id); blank();
+    return;
+  }
+
+  if (action === "group") {
+    if (!options.id || !options.name) fail("Workspace ID and group name required", { hint: "Usage: domani workspace group --id <id> --name Support --principals human:u1,agent:a1", code: "validation_error", json: options.json });
+    const principals = (options.principals || "").split(",").map((value) => value.trim()).filter(Boolean).map((value) => {
+      const [type, id] = value.split(":", 2);
+      if (!id) fail(`Invalid principal: ${value}`, { hint: "Use type:id", json: options.json });
+      return { type, id, label: id };
+    });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/access/groups`, {
+      method: "PUT",
+      body: JSON.stringify({ id: options.groupId, name: options.name, principals }),
+    }, options, "Syncing access group");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Access Group Synced"); row("ID", data.id); row("Principals", data.principal_count); blank();
+    return;
+  }
+
+  if (action === "collection") {
+    if (!options.id || !options.name) fail("Workspace ID and collection name required", { hint: "Usage: domani workspace collection --id <id> --name Admin --mailboxes mb1,mb2", code: "validation_error", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/access/collections`, {
+      method: "PUT",
+      body: JSON.stringify({
+        id: options.collectionId,
+        name: options.name,
+        mailbox_ids: options.mailboxes?.split(",").map((value) => value.trim()).filter(Boolean) ?? [],
+      }),
+    }, options, "Syncing mailbox collection");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Mailbox Collection Synced"); row("ID", data.id); row("Mailboxes", data.mailbox_count); blank();
+    return;
+  }
+
+  if (action === "offer") {
+    if (!options.id || !options.email) fail("Workspace ID and recipient email required", { hint: "Usage: domani workspace offer --id <id> --email person@example.com --mailboxes mb1,mb2 --profile responder", code: "validation_error", json: options.json });
+    const grants = (options.mailboxes || "").split(",").map((value) => value.trim()).filter(Boolean).map((id) => ({
+      resource: { type: "mailbox", id },
+      profile: options.profile || "responder",
+    }));
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/access/offers`, {
+      method: "POST",
+      body: JSON.stringify({
+        email: options.email,
+        grants,
+        ownership_disposition: options.ownershipDisposition,
+        creator_disposition: options.creatorDisposition,
+        billing_disposition: options.billingDisposition,
+      }),
+    }, options, "Sending access offer");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Access Offered"); row("Email", data.email); row("Expires", data.expires_at); blank();
+    return;
+  }
+
+  if (action === "accept-offer") {
+    if (!options.token) fail("Access offer token required", { hint: "Usage: domani workspace accept-offer --token <token>", code: "validation_error", json: options.json });
+    const data = await request("/api/workspaces/access/offers/accept", {
+      method: "POST",
+      body: JSON.stringify({ token: options.token }),
+    }, options, "Accepting access offer");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Access Accepted"); row("Workspace", data.workspace_name); row("Ownership", data.ownership); blank();
+    return;
+  }
+
+  if (action === "revoke-access") {
+    if (!options.id || !options.grantId) fail("Workspace and grant IDs required", { hint: "Usage: domani workspace revoke-access --id <id> --grant-id <id>", code: "validation_error", json: options.json });
+    const data = await request(`/api/workspaces/${encodeURIComponent(options.id)}/access/grants/${encodeURIComponent(options.grantId)}`, {
+      method: "DELETE",
+      body: JSON.stringify({ expected_version: options.expectedVersion ? Number(options.expectedVersion) : undefined }),
+    }, options, "Revoking access");
+    if (options.json) return jsonOut(data, options.fields);
+    blank(); heading("Access Revoked"); row("Grant", data.grant_id); row("Version", data.version); blank();
     return;
   }
 
@@ -213,7 +339,7 @@ export async function workspace(action: string | undefined, options: WorkspaceOp
   }
 
   fail(`Unknown action: ${action}`, {
-    hint: "Actions: list, create, show, rename, invite, accept, revoke-invite, member-role, remove-member, leave, transfer, accept-ownership, revoke-transfer, adopt-mailbox, grant, revoke-grant, checkout, cancel",
+    hint: "Actions: list, create, show, access, group, collection, offer, accept-offer, revoke-access, rename, invite, accept, revoke-invite, member-role, remove-member, leave, transfer, accept-ownership, revoke-transfer, adopt-mailbox, grant, revoke-grant, checkout, cancel",
     code: "validation_error",
     json: options.json,
     fields: options.fields,
