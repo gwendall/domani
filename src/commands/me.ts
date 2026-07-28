@@ -3,15 +3,20 @@ import pc from "picocolors";
 import { S, heading, row, blank, jsonOut, fail } from "../ui.js";
 
 export async function me(options: { json?: boolean; fields?: string }): Promise<void> {
-  const res = await apiRequest("/api/me");
+  const [res, activationRes] = await Promise.all([
+    apiRequest("/api/me"),
+    apiRequest("/api/me/activation"),
+  ]);
   const data = await res.json();
 
   if (!res.ok) {
     fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
   }
 
+  const activation = activationRes.ok ? await activationRes.json() : null;
+
   if (options.json) {
-    jsonOut(data, options.fields);
+    jsonOut({ ...data, activation }, options.fields);
     return;
   }
 
@@ -22,5 +27,10 @@ export async function me(options: { json?: boolean; fields?: string }): Promise<
   row("API tokens", String(data.token_count));
   row("Referral code", data.referral_code || pc.dim("-"));
   row("Created", new Date(data.created_at).toLocaleDateString());
+  if (activation) {
+    row("Activation", activation.status);
+    const next = activation.recommended_actions?.[0];
+    if (next) row("Next action", next.label);
+  }
   blank();
 }
