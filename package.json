@@ -21,8 +21,8 @@
   "engines": {
     "node": ">=18"
   },
+  "packageManager": "pnpm@10.27.0",
   "scripts": {
-    "bump": "node -e \"const fs=require('fs');const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));const old=pkg.version;const p=old.split('.').map(Number);pkg.version=[p[0],p[1],p[2]+1].join('.');fs.writeFileSync('package.json',JSON.stringify(pkg,null,2)+'\\n');const version=JSON.parse(fs.readFileSync('version.json','utf8'));version.version=pkg.version;fs.writeFileSync('version.json',JSON.stringify(version,null,2)+'\\n');console.log('CLI version '+old+' → '+pkg.version)\" && node ../../scripts/sync-agent-plugin-cli-version.mjs $(node -p \"require('./package.json').version\")",
     "build": "node build.mjs",
     "install:local": "node build.mjs && cp dist/domani.cjs $(which domani)",
     "check": "tsc --noEmit",
@@ -31,8 +31,7 @@
     "test:e2e": "npx tsx --test src/__tests__/e2e/*.test.ts",
     "test:e2e:full": "E2E_MUTATE=1 npx tsx --test src/__tests__/e2e/*.test.ts",
     "test:all": "npx tsx --test src/__tests__/*.test.ts src/__tests__/e2e/*.test.ts",
-    "dev": "tsc --watch",
-    "publish:npm": "node build.mjs && npm publish --access public"
+    "dev": "tsc --watch"
   },
   "keywords": [
     "domain",
@@ -53,15 +52,15 @@
     "usdc"
   ],
   "dependencies": {
-    "@clack/prompts": "^1.0.1",
-    "commander": "^13.1.0",
-    "picocolors": "^1.1.1",
-    "yocto-spinner": "^1.1.0"
+    "@clack/prompts": "1.0.1",
+    "commander": "13.1.0",
+    "picocolors": "1.1.1",
+    "yocto-spinner": "1.1.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "esbuild": "^0.27.3",
-    "tsx": "^4.23.1",
-    "typescript": "^5.0.0"
+    "@types/node": "20.19.33",
+    "esbuild": "0.27.3",
+    "tsx": "4.23.1",
+    "typescript": "5.9.3"
   }
 }

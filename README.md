@@ -4,8 +4,8 @@ Domains and email - for humans and AI agents.
 
 Register domains, manage DNS, create mailboxes, send and receive email. From your terminal, your agent, or the web.
 
-[![npm version](https://img.shields.io/npm/v/domani.svg)](https://www.npmjs.com/package/domani)
-[![license](https://img.shields.io/npm/l/domani.svg)](https://github.com/gwendall/domani/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/domani-cli.svg)](https://www.npmjs.com/package/domani-cli)
+[![license](https://img.shields.io/npm/l/domani-cli.svg)](https://github.com/gwendall/domani/blob/main/LICENSE)
 
 ## How it works
 

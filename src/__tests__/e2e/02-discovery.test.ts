@@ -83,8 +83,16 @@ describe("discovery workflow", () => {
       }
     });
 
+    it("basic search without --expand checks ~10 TLDs", () => {
+      const result = run(["search", `e2ebasic${Date.now()}`], { timeout: 45_000 });
+      assertSuccess(result);
+      const total = (result.data as Record<string, unknown>).total as number;
+      assert.ok(total <= 10, `Expected <=10 TLDs without --expand, got ${total}`);
+    });
+
     it("--expand searches 30+ TLDs", () => {
-      // --expand checks up to 200 TLDs; prod streams them in ~60-90s
+      // Keep this rate-limit-heavy case last: it shares RDAP hosts with the
+      // basic search and can legitimately consume their retry budget.
       const result = run(["search", `e2eexpand${Date.now()}`, "--expand"], { timeout: 120_000 });
       assertSuccess(result);
       assertField(result.data, "name");
@@ -100,13 +108,6 @@ describe("discovery workflow", () => {
       const tlds = results.map((r) => r.domain.split(".").pop());
       const hasExoticTld = tlds.some((t) => ["run", "gg", "cc", "fm", "tv", "space", "lol", "studio", "tech", "cloud"].includes(t!));
       assert.ok(hasExoticTld, `Expected at least one exotic TLD in results, got: ${tlds.join(", ")}`);
-    });
-
-    it("basic search without --expand checks ~10 TLDs", () => {
-      const result = run(["search", `e2ebasic${Date.now()}`], { timeout: 45_000 });
-      assertSuccess(result);
-      const total = (result.data as Record<string, unknown>).total as number;
-      assert.ok(total <= 10, `Expected <=10 TLDs without --expand, got ${total}`);
     });
   });
 
