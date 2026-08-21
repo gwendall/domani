@@ -12,13 +12,17 @@ export function resetAuthCache(): void {
 }
 
 /**
- * Ensure the user is on Pro before proceeding.
+ * Ensure the user is on a paid plan before proceeding.
  *
  * - If already Pro: instant no-op.
  * - If TTY: opens billing page, polls until upgraded, continues.
  * - If non-TTY: structured error exit.
  */
-export async function ensurePro(): Promise<void> {
+export function isPaidAccountPlan(plan: unknown): boolean {
+  return typeof plan === "string" && ["pro", "agent", "fleet", "scale"].includes(plan);
+}
+
+export async function ensurePaidPlan(): Promise<void> {
   if (_proEnsured) return;
 
   const isJson = process.argv.includes("--json") || !isTTY;
@@ -31,12 +35,12 @@ export async function ensurePro(): Promise<void> {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
-    if (data.plan === "pro") { _proEnsured = true; return; }
+    if (isPaidAccountPlan(data.plan)) { _proEnsured = true; return; }
   } catch { /* proceed to upgrade flow */ }
 
   if (isJson) {
     console.log(JSON.stringify({
-      error: "Pro plan required",
+      error: "Paid plan required",
       code: "upgrade_required",
       hint: "Upgrade at https://domani.run/settings",
       fix_command: "domani upgrade",
@@ -45,9 +49,9 @@ export async function ensurePro(): Promise<void> {
   }
 
   blank();
-  console.log(`  ${pc.dim("This feature requires")} ${pc.bold("Pro")} ${pc.dim("($9/month).")}`);
-  console.log(`  ${pc.dim("Opening billing page")} ${S.arrow} ${pc.cyan("domani.run/settings")}`);
-  openUrl(`${apiUrl.replace("http://localhost:3000", "https://domani.run")}/settings`);
+  console.log(`  ${pc.dim("This feature requires a")} ${pc.bold("paid plan")} ${pc.dim("($19/month or a legacy Pro subscription).")}`);
+  console.log(`  ${pc.dim("Opening pricing page")} ${S.arrow} ${pc.cyan("domani.run/pricing")}`);
+  openUrl(`${apiUrl.replace("http://localhost:3000", "https://domani.run")}/pricing`);
   blank();
 
   const s = createSpinner(true);
@@ -60,9 +64,9 @@ export async function ensurePro(): Promise<void> {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (data.plan === "pro") {
+      if (isPaidAccountPlan(data.plan)) {
         _proEnsured = true;
-        s.stop(`${S.success} Upgraded to Pro! Continuing...`);
+        s.stop(`${S.success} Paid plan active! Continuing...`);
         blank();
         return;
       }

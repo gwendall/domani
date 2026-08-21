@@ -11,8 +11,8 @@ export async function cancel(options?: { json?: boolean; fields?: string }): Pro
 
   if (!res.ok) {
     s.stop("Failed");
-    if (data.code === "NOT_PRO") {
-      fail("You're not on the Pro plan.", { json: options?.json });
+    if (data.code === "NOT_PAID" || data.code === "NOT_PRO") {
+      fail("You're not on a paid plan.", { json: options?.json });
     } else {
       fail(data.error || data.message, { hint: data.hint, status: res.status, json: options?.json });
     }

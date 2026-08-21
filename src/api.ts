@@ -1,5 +1,5 @@
 import { getApiUrl, getToken, CLI_VERSION } from "./config.js";
-import { ensurePro } from "./auth.js";
+import { ensurePaidPlan } from "./auth.js";
 
 /** Wrap response so .json() never throws on non-JSON bodies */
 function safeResponse(res: Response): Response {
@@ -49,7 +49,7 @@ export async function apiRequest(
     try {
       const data = JSON.parse(text);
       if (data.code === "UPGRADE_REQUIRED") {
-        await ensurePro();
+        await ensurePaidPlan();
         return apiRequest(path, options, true);
       }
     } catch { /* not JSON, skip */ }

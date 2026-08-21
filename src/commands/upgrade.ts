@@ -11,8 +11,8 @@ export async function upgrade(options?: { json?: boolean; fields?: string }): Pr
 
   if (!res.ok) {
     s.stop("Failed");
-    if (data.code === "ALREADY_PRO") {
-      fail("You're already on the Pro plan.", { json: options?.json });
+    if (data.code === "ALREADY_SUBSCRIBED" || data.code === "ALREADY_PRO") {
+      fail("You're already on a paid plan.", { json: options?.json });
     } else {
       fail(data.error || data.message, { hint: data.hint, status: res.status, json: options?.json });
     }
@@ -30,6 +30,6 @@ export async function upgrade(options?: { json?: boolean; fields?: string }): Pr
   console.log(`  ${pc.dim("Opening browser")} ${S.arrow} ${fmt.url(data.url)}`);
   blank();
   openUrl(data.url);
-  console.log(`  ${S.info} ${pc.dim("Complete your Pro upgrade in the browser.")}`);
+  console.log(`  ${S.info} ${pc.dim("Complete your plan upgrade in the browser.")}`);
   blank();
 }

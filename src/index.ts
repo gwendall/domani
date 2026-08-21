@@ -155,13 +155,13 @@ program
 
 program
   .command("upgrade")
-  .description("Upgrade to Pro: 10,000 emails/month, unlimited mailboxes, API/MCP/CLI access")
+  .description("Upgrade to Agent ($19/month)")
   .option("--json", "Output as JSON (returns checkout URL)")
   .action(upgrade);
 
 program
   .command("cancel")
-  .description("Cancel Pro subscription (access continues until end of billing period)")
+  .description("Cancel your paid subscription (access continues until end of billing period)")
   .option("--json", "Output as JSON")
   .action(cancel);
 
