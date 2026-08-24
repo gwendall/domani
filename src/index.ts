@@ -436,7 +436,7 @@ Examples:
   domani email archive hi@myapp.dev --message-ids m1,m2
   domani email send --from hi@myapp.dev --to bob@x.com --subject "Hello" --text "Hi Bob"
   domani email webhook hi@myapp.dev --url https://example.com/hook --authorization-env CURSOR_AUTH
-  domani email webhook-test hi@myapp.dev              # deliver a signed test event
+  domani email webhook-test hi@myapp.dev              # one signed test; live inbound retries up to 3x
   domani email setup myapp.dev                      # setup email for domain
   domani email status myapp.dev                     # check email DNS health
   domani email delete --domain myapp.dev --slug hi  # delete mailbox`)
