@@ -430,6 +430,7 @@ Examples:
   domani email folders hi@myapp.dev                 # folder counts
   domani email archive hi@myapp.dev --message-ids m1,m2
   domani email send --from hi@myapp.dev --to bob@x.com --subject "Hello" --text "Hi Bob"
+  domani email webhook hi@myapp.dev --url https://example.com/hook --authorization-env CURSOR_AUTH
   domani email setup myapp.dev                      # setup email for domain
   domani email status myapp.dev                     # check email DNS health
   domani email delete --domain myapp.dev --slug hi  # delete mailbox`)
@@ -446,6 +447,9 @@ Examples:
   .option("--in-reply-to <message-id>", "Message-ID of email being replied to (for threading)")
   .option("--references <message-ids>", "Space-separated Message-ID chain (for threading)")
   .option("--url <url>", "Webhook URL (for webhook)")
+  .option("--authorization-env <name>", "Read the webhook Authorization value from this environment variable")
+  .option("--api-key-env <name>", "Read the webhook X-API-Key value from this environment variable")
+  .option("--clear-headers", "Clear custom webhook auth headers (requires --url)")
   .option("--forward-to <email>", "Email address to forward inbound emails to (for forward)")
   .option("--direction <dir>", "Filter messages: in or out")
   .option("--folder <folder>", "System folder: inbox, archive, sent, spam, trash")
@@ -641,7 +645,9 @@ program
 Examples:
   domani webhooks list
   domani webhooks create --url https://example.com/hook --events domain.purchased,domain.expiring
+  domani webhooks create --url https://example.com/hook --events email.received --authorization-env CURSOR_AUTH
   domani webhooks update --webhook-id wh_abc --active off
+  domani webhooks update --webhook-id wh_abc --clear-headers
   domani webhooks delete --webhook-id wh_abc
   domani webhooks deliveries --webhook-id wh_abc
   domani webhooks replay --webhook-id wh_abc --delivery-id del_abc --idempotency-key incident-2026-07-25
@@ -652,6 +658,9 @@ Examples:
   .option("--delivery-id <id>", "Webhook delivery ID (for replay)")
   .option("--idempotency-key <key>", "Stable idempotency key (for replay)")
   .option("--active <on|off>", "Enable or disable webhook")
+  .option("--authorization-env <name>", "Read the webhook Authorization value from this environment variable")
+  .option("--api-key-env <name>", "Read the webhook X-API-Key value from this environment variable")
+  .option("--clear-headers", "Clear custom webhook auth headers")
   .option("--limit <n>", "Limit deliveries returned")
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")

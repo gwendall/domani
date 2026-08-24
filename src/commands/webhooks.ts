@@ -1,6 +1,7 @@
 import { apiRequest, publicRequest } from "../api.js";
 import pc from "picocolors";
 import { S, fmt, heading, row, blank, table, hintCommand, createSpinner, jsonOut, dryRunOut, fail } from "../ui.js";
+import { resolveWebhookHeadersFromEnv, webhookHeaderNames } from "../webhook-headers.js";
 
 export async function webhooks(
   action: string | undefined,
@@ -15,6 +16,9 @@ export async function webhooks(
     idempotencyKey?: string;
     active?: string;
     limit?: string;
+    authorizationEnv?: string;
+    apiKeyEnv?: string;
+    clearHeaders?: boolean;
   },
 ): Promise<void> {
   switch (action) {
@@ -111,19 +115,29 @@ async function listWebhooks(json?: boolean, fields?: string): Promise<void> {
 
   blank();
   heading("Webhooks");
-  const rows = data.webhooks.map((w: { id: string; url: string; events: string[]; active: boolean }) => [
+  const rows = data.webhooks.map((w: { id: string; url: string; events: string[]; header_names?: string[]; active: boolean }) => [
     pc.dim(w.id),
     fmt.url(w.url),
     w.events.length <= 3 ? w.events.join(", ") : `${w.events.length} events`,
+    w.header_names?.join(", ") || pc.dim("none"),
     w.active ? pc.green("active") : pc.dim("paused"),
   ]);
-  table(["ID", "URL", "Events", "Status"], rows, [28, 40, 24, 10]);
+  table(["ID", "URL", "Events", "Auth headers", "Status"], rows, [28, 40, 24, 20, 10]);
   blank();
 }
 
 // ── Create ────────────────────────────────────────────
 
-async function createWebhook(options: { dryRun?: boolean; json?: boolean; fields?: string; url?: string; events?: string }): Promise<void> {
+async function createWebhook(options: {
+  dryRun?: boolean;
+  json?: boolean;
+  fields?: string;
+  url?: string;
+  events?: string;
+  authorizationEnv?: string;
+  apiKeyEnv?: string;
+  clearHeaders?: boolean;
+}): Promise<void> {
   if (!options.url) {
     fail("URL required", { hint: "Usage: domani webhooks create --url https://example.com/hook --events domain.purchased,dns.updated", code: "validation_error", json: options.json, fields: options.fields });
   }
@@ -132,9 +146,24 @@ async function createWebhook(options: { dryRun?: boolean; json?: boolean; fields
   }
 
   const events = options.events.split(",").map((e) => e.trim());
+  let headers: Record<string, string> | undefined;
+  try {
+    headers = resolveWebhookHeadersFromEnv(options);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : "Invalid webhook headers", {
+      hint: "Set the named environment variable, or remove the conflicting header option.",
+      code: "validation_error",
+      json: options.json,
+      fields: options.fields,
+    });
+  }
 
   if (options.dryRun) {
-    return dryRunOut("webhook_create", { url: options.url, events }, options.json, options.fields);
+    return dryRunOut("webhook_create", {
+      url: options.url,
+      events,
+      header_names: webhookHeaderNames(headers),
+    }, options.json, options.fields);
   }
 
   const s = createSpinner(!options.json);
@@ -142,7 +171,7 @@ async function createWebhook(options: { dryRun?: boolean; json?: boolean; fields
 
   const res = await apiRequest("/api/webhooks", {
     method: "POST",
-    body: JSON.stringify({ url: options.url, events }),
+    body: JSON.stringify({ url: options.url, events, ...(headers !== undefined ? { headers } : {}) }),
   });
   const data = await res.json();
 
@@ -163,6 +192,7 @@ async function createWebhook(options: { dryRun?: boolean; json?: boolean; fields
   row("ID", data.id);
   row("URL", fmt.url(data.url));
   row("Events", data.events.join(", "));
+  row("Auth headers", data.header_names?.join(", ") || pc.dim("none"));
   row("Status", pc.green("active"));
   blank();
   console.log(`  ${pc.yellow("!")} ${pc.bold("Secret:")} ${data.secret}`);
@@ -181,6 +211,9 @@ async function updateWebhook(options: {
   url?: string;
   events?: string;
   active?: string;
+  authorizationEnv?: string;
+  apiKeyEnv?: string;
+  clearHeaders?: boolean;
 }): Promise<void> {
   if (!options.webhookId) {
     fail("Webhook ID required", { hint: "Usage: domani webhooks update --webhook-id <id> [--url ...] [--events ...] [--active on|off]", code: "validation_error", json: options.json, fields: options.fields });
@@ -190,9 +223,25 @@ async function updateWebhook(options: {
   if (options.url) body.url = options.url;
   if (options.events) body.events = options.events.split(",").map((e) => e.trim());
   if (options.active !== undefined) body.active = options.active === "on" || options.active === "true";
+  try {
+    const headers = resolveWebhookHeadersFromEnv(options);
+    if (headers !== undefined) body.headers = headers;
+  } catch (error) {
+    fail(error instanceof Error ? error.message : "Invalid webhook headers", {
+      hint: "Set the named environment variable, or remove the conflicting header option.",
+      code: "validation_error",
+      json: options.json,
+      fields: options.fields,
+    });
+  }
 
   if (options.dryRun) {
-    return dryRunOut("webhook_update", { webhook_id: options.webhookId, ...body }, options.json, options.fields);
+    const { headers, ...safeBody } = body;
+    return dryRunOut("webhook_update", {
+      webhook_id: options.webhookId,
+      ...safeBody,
+      ...(headers !== undefined ? { header_names: webhookHeaderNames(headers as Record<string, string>) } : {}),
+    }, options.json, options.fields);
   }
 
   const s = createSpinner(!options.json);
@@ -220,6 +269,7 @@ async function updateWebhook(options: {
   row("ID", data.id);
   row("URL", fmt.url(data.url));
   row("Events", data.events.join(", "));
+  row("Auth headers", data.header_names?.join(", ") || pc.dim("none"));
   row("Status", data.active ? pc.green("active") : pc.dim("paused"));
   blank();
 }

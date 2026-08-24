@@ -21,6 +21,7 @@ import {
 import { requireValidDomain } from "../validate.js";
 import { pickDomain } from "../prompt.js";
 import { randomUUID } from "node:crypto";
+import { resolveWebhookHeadersFromEnv, webhookHeaderNames } from "../webhook-headers.js";
 
 /** Known subcommands (used for legacy detection) */
 const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes", "coordination", "presence", "release-presence"];
@@ -81,6 +82,9 @@ interface EmailOptions {
   mode?: string;
   acquireLease?: boolean;
   workspace?: string;
+  authorizationEnv?: string;
+  apiKeyEnv?: string;
+  clearHeaders?: boolean;
 }
 
 function recordCells(r: DnsRecord): string[] {
@@ -896,11 +900,32 @@ async function webhookCli(options: EmailOptions): Promise<void> {
 
   const address = `${options.slug}@${domain}`;
   const encodedAddress = encodeURIComponent(address);
+  let headers: Record<string, string> | undefined;
+  try {
+    headers = resolveWebhookHeadersFromEnv(options);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : "Invalid webhook headers", {
+      hint: "Set the named environment variable, or remove the conflicting header option.",
+      code: "validation_error",
+      json: options.json,
+      fields: options.fields,
+    });
+  }
+
+  if (!options.url && headers !== undefined) {
+    fail("--url is required when changing webhook auth headers", {
+      hint: "Pass the existing webhook URL with --authorization-env, --api-key-env, or --clear-headers.",
+      code: "validation_error",
+      json: options.json,
+      fields: options.fields,
+    });
+  }
 
   if (options.dryRun) {
     return dryRunOut("email_webhook", {
       address,
       webhook_url: options.url || null,
+      ...(headers !== undefined ? { header_names: webhookHeaderNames(headers) } : {}),
     }, options.json, options.fields);
   }
 
@@ -910,7 +935,10 @@ async function webhookCli(options: EmailOptions): Promise<void> {
     s.start(`Setting webhook for ${address}`);
     const res = await apiRequest(
       `/api/emails/${encodedAddress}/webhook`,
-      { method: "PUT", body: JSON.stringify({ url: options.url }) },
+      {
+        method: "PUT",
+        body: JSON.stringify({ url: options.url, ...(headers !== undefined ? { headers } : {}) }),
+      },
     );
     const data = await res.json();
     if (!res.ok) {
@@ -921,6 +949,7 @@ async function webhookCli(options: EmailOptions): Promise<void> {
     if (options.json) { jsonOut(data, options.fields); return; }
     heading(`Mailbox ${data.address}`);
     row("Webhook", fmt.url(data.webhook_url));
+    row("Auth headers", data.header_names?.join(", ") || pc.dim("none"));
     row("Signing secret", pc.dim(data.signing_secret));
     blank();
   } else {
