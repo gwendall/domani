@@ -14,12 +14,25 @@ export function resetAuthCache(): void {
 /**
  * Ensure the user is on a paid plan before proceeding.
  *
- * - If already Pro: instant no-op.
+ * - If already on any paid personal or workspace plan: instant no-op.
  * - If TTY: opens billing page, polls until upgraded, continues.
  * - If non-TTY: structured error exit.
  */
 export function isPaidAccountPlan(plan: unknown): boolean {
-  return typeof plan === "string" && ["pro", "agent", "fleet", "scale"].includes(plan);
+  return typeof plan === "string" && [
+    "pro",
+    "agent",
+    "fleet",
+    "scale",
+    "mail_solo",
+    "mail_team",
+    "mail_business",
+  ].includes(plan);
+}
+
+export function hasPaidPlan(account: { plan?: unknown; workspace_plans?: unknown }): boolean {
+  return isPaidAccountPlan(account.plan)
+    || (Array.isArray(account.workspace_plans) && account.workspace_plans.some(isPaidAccountPlan));
 }
 
 export async function ensurePaidPlan(): Promise<void> {
@@ -35,7 +48,7 @@ export async function ensurePaidPlan(): Promise<void> {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
-    if (isPaidAccountPlan(data.plan)) { _proEnsured = true; return; }
+    if (hasPaidPlan(data)) { _proEnsured = true; return; }
   } catch { /* proceed to upgrade flow */ }
 
   if (isJson) {
@@ -49,7 +62,7 @@ export async function ensurePaidPlan(): Promise<void> {
   }
 
   blank();
-  console.log(`  ${pc.dim("This feature requires a")} ${pc.bold("paid plan")} ${pc.dim("($19/month or a legacy Pro subscription).")}`);
+  console.log(`  ${pc.dim("This feature requires a")} ${pc.bold("paid plan")} ${pc.dim("(including an active Mailzero workspace plan or legacy Pro subscription).")}`);
   console.log(`  ${pc.dim("Opening pricing page")} ${S.arrow} ${pc.cyan("domani.run/pricing")}`);
   openUrl(`${apiUrl.replace("http://localhost:3000", "https://domani.run")}/pricing`);
   blank();
@@ -64,7 +77,7 @@ export async function ensurePaidPlan(): Promise<void> {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (isPaidAccountPlan(data.plan)) {
+      if (hasPaidPlan(data)) {
         _proEnsured = true;
         s.stop(`${S.success} Paid plan active! Continuing...`);
         blank();
