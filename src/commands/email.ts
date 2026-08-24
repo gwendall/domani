@@ -190,6 +190,8 @@ export async function email(
       return sendEmailCli(options);
     case "webhook":
       return webhookCli(options);
+    case "webhook-test":
+      return webhookTestCli(options);
     case "forward":
       return forwardCli(options);
     case "work":
@@ -216,7 +218,7 @@ export async function email(
       return connectProvider(options.domain || await pickDomain(), arg2 || undefined, !!options.json, options.fields);
     default:
       fail(`Unknown action: ${action}`, {
-        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, create, delete, send, forward, webhook, work, triage, notes, note, activity, changes, coordination, presence, release-presence, setup, status, check, connect",
+        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, create, delete, send, forward, webhook, webhook-test, work, triage, notes, note, activity, changes, coordination, presence, release-presence, setup, status, check, connect",
         code: "validation_error",
         json: options.json,
         fields: options.fields,
@@ -969,6 +971,30 @@ async function webhookCli(options: EmailOptions): Promise<void> {
     row("Webhook", pc.dim("none"));
     blank();
   }
+}
+
+async function webhookTestCli(options: EmailOptions): Promise<void> {
+  const domain = await requireDomain(options);
+  if (!options.slug) {
+    fail("Slug required", { hint: "Usage: domani email webhook-test hello@example.com", code: "validation_error", json: options.json, fields: options.fields });
+  }
+  const address = `${options.slug}@${domain}`;
+  if (options.dryRun) return dryRunOut("email_webhook_test", { address }, options.json, options.fields);
+
+  const spinner = createSpinner(!options.json);
+  spinner.start(`Testing webhook for ${address}`);
+  const response = await apiRequest(`/api/emails/${encodeURIComponent(address)}/webhook/test`, { method: "POST" });
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    spinner.stop("Failed");
+    fail(data.error || data.message || "Webhook test failed", { hint: data.hint || "Check the endpoint and sender authentication, then retry.", status: response.status, json: options.json, fields: options.fields });
+  }
+  spinner.stop(`${S.success} Test delivered`);
+  if (options.json) return jsonOut(data, options.fields);
+  heading(`Mailbox ${address}`);
+  row("Delivery", pc.green("successful"));
+  if (typeof data.status === "number") row("Endpoint", `HTTP ${data.status}`);
+  blank();
 }
 
 // ── Set forward ─────────────────────────────────

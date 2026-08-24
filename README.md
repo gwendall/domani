@@ -102,6 +102,7 @@ domani email forward hello@startup.dev --forward-to me@gmail.com
 # CURSOR_AUTH contains the complete value, e.g. "Bearer sender-key"
 domani email webhook hello@startup.dev --url https://myapp.dev/hooks/email \
   --authorization-env CURSOR_AUTH
+domani email webhook-test hello@startup.dev
 
 # Provision domain + mailbox + authenticated event webhook in one call.
 # The secret stays in the environment; only its variable name is in argv.
@@ -152,6 +153,7 @@ domani email read|unread|star|unstar user@domain --message-ids m1,m2
 domani email send user@domain        Send an email (--to, --subject, --body, --cc, --bcc)
 domani email forward user@domain     Forward inbound to a personal address (--forward-to)
 domani email webhook user@domain     Forward inbound as JSON (--url, --authorization-env, --api-key-env, --clear-headers)
+domani email webhook-test user@domain Deliver one signed test event to the configured webhook
 domani email setup --domain <domain>       Auto-configure MX, SPF, DKIM, DMARC
 domani email status --domain <domain>      Check email DNS health
 domani email connect --domain <domain> <provider>   Connect external provider (Gmail, Fastmail, Proton)

@@ -27,6 +27,16 @@ describe("email webhook endpoints", () => {
       assert.equal(data.action, "email_webhook");
       assert.equal(data.webhook_url, null);
     });
+
+    it("webhook test --dry-run", (t) => {
+      if (skipIfNoAuth(t)) return;
+      const result = run(["email", "webhook-test", `test@${TEST_DOMAIN}`, "--dry-run"]);
+      assertSuccess(result);
+      const data = result.data as Record<string, unknown>;
+      assert.equal(data.dry_run, true);
+      assert.equal(data.action, "email_webhook_test");
+      assert.equal(data.address, `test@${TEST_DOMAIN}`);
+    });
   });
 
   describe("email webhook API lifecycle", () => {
@@ -45,6 +55,10 @@ describe("email webhook endpoints", () => {
       assertField(setData, "signing_secret");
       assert.equal(setData.webhook_url, webhookUrl);
       assert.ok(typeof setData.signing_secret === "string" && setData.signing_secret.startsWith("whsec_"));
+
+      const testResult = run(["email", "webhook-test", address]);
+      assertSuccess(testResult);
+      assert.equal((testResult.data as Record<string, unknown>).success, true);
 
       // Get webhook (via API directly since CLI doesn't have a get subcommand)
       // We'll verify it was set by removing it
