@@ -8,10 +8,13 @@ export interface LoginOptions {
   scopes?: string;
   label?: string;
   expiresIn?: string;
+  surface?: string;
 }
 
+const PROGRAMMATIC_SURFACES = new Set(["cli", "mcp", "plugin", "skill", "api"]);
+
 export function buildLoginRequest(options: LoginOptions): {
-  body: { scopes?: string[]; label?: string; expires_in?: number };
+  body: { scopes?: string[]; label?: string; expires_in?: number; surface: string; intent: "programmatic_access" };
   delegated: boolean;
 } {
   const scopes = options.scopes
@@ -19,6 +22,10 @@ export function buildLoginRequest(options: LoginOptions): {
     .map((scope) => scope.trim())
     .filter(Boolean);
   const delegated = Boolean(scopes?.length || options.label || options.expiresIn);
+  const surface = options.surface || "cli";
+  if (!PROGRAMMATIC_SURFACES.has(surface)) {
+    throw new RangeError("--surface must be one of: cli, mcp, plugin, skill, api");
+  }
   const expiresIn = options.expiresIn === undefined ? undefined : Number(options.expiresIn);
   if (
     expiresIn !== undefined
@@ -32,6 +39,8 @@ export function buildLoginRequest(options: LoginOptions): {
       ...(scopes?.length ? { scopes } : {}),
       ...(options.label ? { label: options.label } : {}),
       ...(expiresIn !== undefined ? { expires_in: expiresIn } : {}),
+      surface,
+      intent: "programmatic_access",
     },
   };
 }
@@ -127,7 +136,11 @@ export async function login(options: LoginOptions): Promise<void> {
       saveConfig({ ...getConfig(), token: data.token, email: data.email, api_url: apiUrl });
       s.stop(`Logged in as ${pc.bold(data.email)}`);
       blank();
-      hintCommand("Get started:", `domani search`);
+      console.log(`  ${pc.bold("Get one real result:")}`);
+      hintCommand("1. Create your free inbox:", "domani email create YOUR_HANDLE@domani.run");
+      hintCommand("2. Connect your webhook:", "domani email webhook YOUR_HANDLE@domani.run --url https://YOUR_AGENT/webhook");
+      hintCommand("3. Prove delivery:", "domani email webhook-test YOUR_HANDLE@domani.run");
+      console.log(`  ${pc.dim("A custom domain can wait until this loop works.")}`);
       blank();
       return;
     }

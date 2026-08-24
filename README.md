@@ -32,7 +32,7 @@ Agent plugins can use Domani without placing an API key in a prompt, shell
 history, or editor configuration:
 
 ```bash
-domani login
+domani login --surface mcp
 domani mcp serve
 ```
 
@@ -49,6 +49,19 @@ domani login --scopes domains:read,search --label "Project agent" --expires-in 8
 
 The approval screen shows the requested access and the resulting credential is
 stored in the keychain without being printed.
+
+After login, prove one complete inbound loop before browsing other tools or
+buying a domain:
+
+```bash
+domani email create myagent@domani.run
+domani email webhook myagent@domani.run --url https://my-agent.example/webhook
+domani email webhook-test myagent@domani.run
+```
+
+Use `--surface plugin`, `--surface skill`, or `--surface api` when that is the
+entry point. This keeps activation attribution consistent without exposing a
+credential.
 
 This installs the `domani` command. Or run directly with `npx`:
 

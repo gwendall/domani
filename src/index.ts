@@ -104,10 +104,13 @@ program
   .option("--scopes <scopes>", "Request a comma-separated, least-privilege scope set")
   .option("--label <label>", "Human-readable label shown on the approval screen")
   .option("--expires-in <seconds>", "Delegated credential lifetime in seconds (3600-31536000)")
+  .option("--surface <surface>", "Attribute onboarding: cli, mcp, plugin, skill, or api", "cli")
   .addHelpText("after", `
 Examples:
   domani login                          # interactive login (opens browser)
   domani login --scopes domains:read,search --label "Project agent" --expires-in 86400
+  domani login --surface mcp            # authenticate an MCP integration
+  domani login --surface plugin         # authenticate the Domani agent plugin
   domani login --json                   # non-interactive (returns auth_url)
   domani login --no-open                # print login URL without opening browser
   DOMANI_API_KEY=domani_sk_xxx domani list  # skip login, use env var`)
