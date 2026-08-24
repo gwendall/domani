@@ -295,6 +295,8 @@ program
   .option("--slug <slug>", "Mailbox local part (e.g. 'hi' for hi@domain). Default 'hi'")
   .option("--name <name>", "Display name for outbound email")
   .option("--webhook <url>", "HTTPS URL to receive inbound email + domain events")
+  .option("--authorization-env <name>", "Read the webhook Authorization value from this environment variable")
+  .option("--api-key-env <name>", "Read the webhook X-API-Key value from this environment variable")
   .option("--years <n>", "Registration years (1-10, default 1)")
   .option("--payment-method <method>", "card, usdc, or balance")
   .option("--dry-run", "Show what would happen without executing")
@@ -304,7 +306,7 @@ program
 Examples:
   domani provision myagent.run                                 # domain + hi@ mailbox
   domani provision myagent.run --slug hey --name "My Agent"    # custom mailbox
-  domani provision myagent.run --webhook https://me.dev/inbox  # + inbound webhook
+  DOMANI_SENDER_AUTH="Bearer secret" domani provision myagent.run --webhook https://me.dev/inbox --authorization-env DOMANI_SENDER_AUTH
   domani provision myagent.run --dry-run                       # preview`)
   .action(provision);
 

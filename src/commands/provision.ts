@@ -2,12 +2,13 @@ import { apiRequest } from "../api.js";
 import pc from "picocolors";
 import { fmt, heading, row, blank, hint, createSpinner, jsonOut, dryRunOut, fail } from "../ui.js";
 import { requireValidDomain } from "../validate.js";
+import { resolveProvisionWebhook } from "../provision-webhook.js";
 
 interface ProvisionResult {
   domain: string;
   domain_status: string;
   mailbox: { address: string; status: string } | null;
-  webhook: { id: string; url: string; secret?: string } | null;
+  webhook: { id: string; url: string; secret?: string; header_names: string[] } | null;
   warnings: string[];
   hint: string;
   next_steps: string[];
@@ -21,6 +22,8 @@ export async function provision(
     webhook?: string;
     years?: string;
     paymentMethod?: string;
+    authorizationEnv?: string;
+    apiKeyEnv?: string;
     json?: boolean;
     fields?: string;
     dryRun?: boolean;
@@ -31,12 +34,26 @@ export async function provision(
   const body: Record<string, unknown> = { domain };
   if (options.slug) body.slug = options.slug;
   if (options.name) body.name = options.name;
-  if (options.webhook) body.webhook_url = options.webhook;
+  let webhookConfig: ReturnType<typeof resolveProvisionWebhook>;
+  try {
+    webhookConfig = resolveProvisionWebhook(options.webhook, options);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : "Invalid webhook headers", {
+      hint: "Set the named environment variable and retry.",
+      code: "validation_error",
+      json: options.json,
+      fields: options.fields,
+    });
+  }
+  Object.assign(body, webhookConfig.request);
   if (options.years) body.years = Number(options.years);
   if (options.paymentMethod) body.payment_method = options.paymentMethod;
 
   if (options.dryRun) {
-    dryRunOut(`POST /api/agents/provision`, body, options.json, options.fields);
+    const previewBody = { ...body };
+    delete previewBody.webhook_headers;
+    Object.assign(previewBody, webhookConfig.preview);
+    dryRunOut(`POST /api/agents/provision`, previewBody, options.json, options.fields);
     return;
   }
 
@@ -72,6 +89,7 @@ export async function provision(
   row("Domain", `${data.domain} (${data.domain_status})`);
   row("Mailbox", data.mailbox ? pc.green(data.mailbox.address) : pc.yellow("pending DNS"));
   row("Webhook", data.webhook ? data.webhook.url : pc.dim("none"));
+  if (data.webhook?.header_names.length) row("Webhook auth", data.webhook.header_names.join(", "));
   if (data.webhook?.secret) row("Signing secret", data.webhook.secret);
 
   if (data.warnings?.length) {

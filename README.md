@@ -103,6 +103,11 @@ domani email forward hello@startup.dev --forward-to me@gmail.com
 domani email webhook hello@startup.dev --url https://myapp.dev/hooks/email \
   --authorization-env CURSOR_AUTH
 
+# Provision domain + mailbox + authenticated event webhook in one call.
+# The secret stays in the environment; only its variable name is in argv.
+AGENT_AUTH="Bearer sender-key" domani provision agent.dev \
+  --webhook https://agent.example/inbox --authorization-env AGENT_AUTH
+
 # Export DNS records before making changes
 domani dns startup.dev snapshot
 domani dns startup.dev set TXT @ "v=spf1 include:_spf.google.com ~all"
