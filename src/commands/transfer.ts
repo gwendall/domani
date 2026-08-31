@@ -4,10 +4,15 @@ import pc from "picocolors";
 import { S, fmt, heading, row, blank, hintCommand, createSpinner, jsonOut, skipConfirm, dryRunOut, fail } from "../ui.js";
 import { requireValidDomain } from "../validate.js";
 import { APP_DOMAIN } from "../brand.js";
+import { waitForEligibility } from "../transfer-eligibility.js";
+import { renderExitGuidance } from "../guidance.js";
+
+const WATCH_INTERVAL_MS = 60_000;
+const WATCH_MAX_ATTEMPTS = 1440; // 24h at one check per minute
 
 export async function transfer(
   domain: string,
-  options: { authCode?: string; yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string }
+  options: { authCode?: string; yes?: boolean; watch?: boolean; dryRun?: boolean; json?: boolean; fields?: string }
 ): Promise<void> {
   requireValidDomain(domain, options);
   const s = createSpinner(!options.json);
@@ -16,7 +21,7 @@ export async function transfer(
   s.start(`Planning safe adoption for ${fmt.domain(domain)}`);
 
   const checkRes = await apiRequest(`/api/domains/adoption-plan?domain=${encodeURIComponent(domain)}`);
-  const check = await checkRes.json();
+  let check = await checkRes.json();
 
   if (!checkRes.ok) {
     s.stop("Check failed");
@@ -25,15 +30,89 @@ export async function transfer(
 
   if (!check.options?.transfer?.eligible) {
     s.stop(`${S.error} Not eligible`);
-    fail(check.options?.transfer?.reason || "Domain is not eligible for transfer.", {
-      hint: check.warnings?.join(" "),
-      code: "not_eligible",
-      json: options.json,
-      fields: options.fields,
-    });
-  }
+    const blocked = check.options?.transfer;
 
-  s.stop(`${S.success} Eligible for transfer`);
+    if (options.watch && blocked?.eligible_at) {
+      // Date-based wait (ICANN windows): the date is known, so polling adds
+      // nothing - register the server watch and get notified when it arrives.
+      const watchRes = await apiRequest("/api/domains/transfer-watch", {
+        method: "POST",
+        body: JSON.stringify({ domain }),
+      });
+      const watch = await watchRes.json();
+      if (!watchRes.ok) {
+        fail(watch.error || watch.message, { hint: watch.hint, status: watchRes.status, json: options.json, fields: options.fields });
+      }
+      if (options.json) {
+        jsonOut(watch, options.fields);
+        return;
+      }
+      heading("Transfer Watch Registered");
+      row("Domain", fmt.domain(domain));
+      row("Eligible from", watch.eligible_at || blocked.eligible_at);
+      if (watch.hint) {
+        blank();
+        console.log(`  ${pc.dim(watch.hint)}`);
+      }
+      blank();
+      return;
+    }
+
+    if (options.watch) {
+      // Lock-based wait: no determinable date, the unlock propagates within
+      // minutes of being flipped at the losing registrar - poll until it does.
+      if (!options.json) {
+        console.log(`  ${pc.dim(blocked?.reason || "Domain is not eligible for transfer yet.")}`);
+        renderExitGuidance(blocked?.guidance);
+        blank();
+      }
+      const w = createSpinner(!options.json);
+      w.start(`Watching ${fmt.domain(domain)} until it becomes transferable (every 60s, Ctrl+C to stop)`);
+      const outcome = await waitForEligibility<typeof check>({
+        fetchPlan: async () => {
+          const res = await apiRequest(`/api/domains/adoption-plan?domain=${encodeURIComponent(domain)}`);
+          if (!res.ok) return null;
+          return res.json();
+        },
+        isEligible: (plan) => !!plan.options?.transfer?.eligible,
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        intervalMs: WATCH_INTERVAL_MS,
+        maxAttempts: WATCH_MAX_ATTEMPTS,
+      });
+      if (outcome.status !== "eligible") {
+        w.stop(`${S.error} Watch ended`);
+        fail(
+          outcome.status === "timeout"
+            ? "Domain did not become eligible within 24 hours."
+            : "Gave up after repeated failures fetching the adoption plan.",
+          {
+            hint: "The transfer lock is disabled at the losing registrar; rerun with --watch once you have flipped it.",
+            code: outcome.status === "timeout" ? "watch_timeout" : "watch_unreachable",
+            json: options.json,
+            fields: options.fields,
+          },
+        );
+      }
+      check = outcome.plan;
+      w.stop(`${S.success} Now eligible for transfer`);
+    } else {
+      if (!options.json) renderExitGuidance(blocked?.guidance);
+      const watchHint = blocked?.eligible_at
+        ? `Eligible from ${blocked.eligible_at}. Rerun with --watch to register a server watch (email + webhook when the date arrives).`
+        : "Fix the blocker above, then rerun - or rerun with --watch to poll until the domain becomes eligible and continue automatically.";
+      const guidanceHint = options.json && blocked?.guidance
+        ? ` The registrar exit playbook is in the adoption plan (options.transfer.guidance, \`domani adopt ${domain} --json\`).`
+        : "";
+      fail(blocked?.reason || "Domain is not eligible for transfer.", {
+        hint: [watchHint + guidanceHint, ...(check.warnings?.length ? [check.warnings.join(" ")] : [])].join(" "),
+        code: "not_eligible",
+        json: options.json,
+        fields: options.fields,
+      });
+    }
+  } else {
+    s.stop(`${S.success} Eligible for transfer`);
+  }
 
   if (options.dryRun) {
     return dryRunOut("transfer", {
@@ -76,6 +155,10 @@ export async function transfer(
         json: options.json,
         fields: options.fields,
       });
+    }
+    // The auth code lives at the losing registrar; say where when we know.
+    if (check.options?.transfer?.guidance) {
+      console.log(`  ${pc.dim("Where to get it:")} ${check.options.transfer.guidance.auth_code}`);
     }
     const code = await text({
       message: "Enter the EPP/auth code from your current registrar:",

@@ -2,6 +2,7 @@ import { apiRequest } from "../api.js";
 import pc from "picocolors";
 import { S, blank, createSpinner, fmt, heading, hintCommand, jsonOut, row, fail } from "../ui.js";
 import { requireValidDomain } from "../validate.js";
+import { renderExitGuidance } from "../guidance.js";
 
 export async function adopt(
   domain: string,
@@ -38,6 +39,11 @@ export async function adopt(
   if (plan.options.transfer.available) {
     const price = plan.options.transfer.price == null ? "price unavailable" : `$${plan.options.transfer.price.toFixed(2)} ${plan.options.transfer.currency}`;
     hintCommand(`Transfer registration for ${price}, preserving nameservers:`, `domani transfer ${plan.domain}`);
+    if (!plan.options.transfer.eligible && plan.options.transfer.reason) {
+      console.log(`  ${pc.yellow("!")} ${plan.options.transfer.reason}`);
+      hintCommand("Wait for eligibility and transfer in one go:", `domani transfer ${plan.domain} --watch`);
+    }
+    renderExitGuidance(plan.options.transfer.guidance);
   }
   for (const warning of plan.warnings || []) console.log(`  ${pc.yellow("!")} ${warning}`);
   blank();

@@ -331,6 +331,7 @@ program
   .description("Transfer a domain from another registrar")
   .option("--auth-code <code>", "EPP/auth code from current registrar")
   .option("--yes", "Skip confirmation prompt")
+  .option("--watch", "If not eligible: poll until the lock lifts and continue, or register a server watch (email + webhook) for a dated wait")
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
@@ -338,7 +339,8 @@ program
 Examples:
   domani transfer myapp.com --auth-code ABC123XYZ
   domani transfer myapp.com --auth-code ABC123XYZ --dry-run
-  domani transfer myapp.com --auth-code ABC123XYZ --yes`)
+  domani transfer myapp.com --auth-code ABC123XYZ --yes
+  domani transfer myapp.com --watch --auth-code ABC123XYZ --yes   # park it: waits for the unlock, then completes`)
   .action(transfer);
 
 program
