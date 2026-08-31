@@ -102,6 +102,7 @@ program
   .option("--json", "Output as JSON (returns auth_url for non-interactive approval)")
   .option("--no-open", "Don't open browser (print URL instead)")
   .option("--scopes <scopes>", "Request a comma-separated, least-privilege scope set")
+  .option("--mailboxes <addresses>", "Confine the credential to these comma-separated mailbox addresses")
   .option("--label <label>", "Human-readable label shown on the approval screen")
   .option("--expires-in <seconds>", "Delegated credential lifetime in seconds (3600-31536000)")
   .option("--surface <surface>", "Attribute onboarding: cli, mcp, plugin, skill, or api", "cli")
@@ -109,6 +110,7 @@ program
 Examples:
   domani login                          # interactive login (opens browser)
   domani login --scopes domains:read,search --label "Project agent" --expires-in 86400
+  domani login --scopes email:read,email:write --mailboxes support@acme.com --label "Support agent"
   domani login --surface mcp            # authenticate an MCP integration
   domani login --surface plugin         # authenticate the Domani agent plugin
   domani login --json                   # non-interactive (returns auth_url)

@@ -6,6 +6,7 @@ export interface LoginOptions {
   json?: boolean;
   open?: boolean;
   scopes?: string;
+  mailboxes?: string;
   label?: string;
   expiresIn?: string;
   surface?: string;
@@ -14,14 +15,18 @@ export interface LoginOptions {
 const PROGRAMMATIC_SURFACES = new Set(["cli", "mcp", "plugin", "skill", "api"]);
 
 export function buildLoginRequest(options: LoginOptions): {
-  body: { scopes?: string[]; label?: string; expires_in?: number; surface: string; intent: "programmatic_access" };
+  body: { scopes?: string[]; mailboxes?: string[]; label?: string; expires_in?: number; surface: string; intent: "programmatic_access" };
   delegated: boolean;
 } {
   const scopes = options.scopes
     ?.split(",")
     .map((scope) => scope.trim())
     .filter(Boolean);
-  const delegated = Boolean(scopes?.length || options.label || options.expiresIn);
+  const mailboxes = options.mailboxes
+    ?.split(",")
+    .map((address) => address.trim().toLowerCase())
+    .filter(Boolean);
+  const delegated = Boolean(scopes?.length || mailboxes?.length || options.label || options.expiresIn);
   const surface = options.surface || "cli";
   if (!PROGRAMMATIC_SURFACES.has(surface)) {
     throw new RangeError("--surface must be one of: cli, mcp, plugin, skill, api");
@@ -37,6 +42,7 @@ export function buildLoginRequest(options: LoginOptions): {
     delegated,
     body: {
       ...(scopes?.length ? { scopes } : {}),
+      ...(mailboxes?.length ? { mailboxes } : {}),
       ...(options.label ? { label: options.label } : {}),
       ...(expiresIn !== undefined ? { expires_in: expiresIn } : {}),
       surface,
