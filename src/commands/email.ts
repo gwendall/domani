@@ -24,7 +24,7 @@ import { randomUUID } from "node:crypto";
 import { resolveWebhookHeadersFromEnv, webhookHeaderNames } from "../webhook-headers.js";
 
 /** Known subcommands (used for legacy detection) */
-const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes", "coordination", "presence", "release-presence"];
+const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes", "coordination", "presence", "release-presence", "escalate", "remind", "contacts", "contact-add", "contact-remove", "tone"];
 
 /** Provider display names */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -85,6 +85,15 @@ interface EmailOptions {
   authorizationEnv?: string;
   apiKeyEnv?: string;
   clearHeaders?: boolean;
+  sendAt?: string;
+  messageId?: string;
+  reason?: string;
+  at?: string;
+  clear?: boolean;
+  q?: string;
+  name?: string;
+  notes?: string;
+  set?: string;
 }
 
 function recordCells(r: DnsRecord): string[] {
@@ -212,6 +221,18 @@ export async function email(
       return coordinationPresenceCli(options);
     case "release-presence":
       return coordinationReleaseCli(options);
+    case "escalate":
+      return escalateCli(options);
+    case "remind":
+      return remindCli(options);
+    case "contacts":
+      return contactsCli(options);
+    case "contact-add":
+      return contactAddCli(options);
+    case "contact-remove":
+      return contactRemoveCli(options);
+    case "tone":
+      return toneCli(options);
     case "check":
       return checkEmailHealth(options.domain || await pickDomain(), !!options.json, options.fields);
     case "connect":
@@ -761,6 +782,7 @@ async function sendEmailCli(options: EmailOptions): Promise<void> {
   if (options.text) body.text = options.text;
   if (options.inReplyTo) body.in_reply_to = options.inReplyTo;
   if (options.references) body.references = options.references;
+  if (options.sendAt) body.send_at = options.sendAt;
 
   const sendAddress = encodeURIComponent(`${options.slug}@${domain}`);
   const res = await apiRequest(
@@ -778,12 +800,185 @@ async function sendEmailCli(options: EmailOptions): Promise<void> {
   }
 
   const toStr = Array.isArray(data.to) ? data.to.join(", ") : data.to;
-  s.stop(`${S.success} Sent to ${pc.cyan(toStr)}`);
+  s.stop(data.status === "scheduled"
+    ? `${S.success} Scheduled for ${pc.cyan(options.sendAt || "")} to ${pc.cyan(toStr)} ${pc.dim("(trash the message before then to cancel)")}`
+    : `${S.success} Sent to ${pc.cyan(toStr)}`);
 
   if (options.json) {
     jsonOut(data, options.fields);
     return;
   }
+}
+
+// ── Escalation, reminders, contacts, tone ─────────
+
+function requireAddress(options: EmailOptions, usage: string): { domain: string; slug: string; address: string } {
+  if (!options.slug || !options.domain) {
+    fail("Mailbox address required", { hint: usage, code: "validation_error", json: options.json, fields: options.fields });
+  }
+  return { domain: options.domain!, slug: options.slug!, address: `${options.slug}@${options.domain}` };
+}
+
+async function messageActionRequest(
+  path: string,
+  body: Record<string, unknown>,
+  options: EmailOptions,
+  spinnerLabel: string,
+  successLabel: (data: Record<string, unknown>) => string,
+): Promise<void> {
+  const s = createSpinner(!options.json);
+  s.start(spinnerLabel);
+  const res = await apiRequest(path, { method: "POST", body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) {
+    s.stop("Failed");
+    fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+  }
+  s.stop(successLabel(data));
+  if (options.json) jsonOut(data, options.fields);
+}
+
+async function escalateCli(options: EmailOptions): Promise<void> {
+  const usage = 'Usage: domani email escalate hello@example.com --message-id MSG_ID [--reason "refund over $500"] [--clear]';
+  const { address } = requireAddress(options, usage);
+  if (!options.messageId) {
+    fail("Message ID required", { hint: usage, code: "validation_error", json: options.json, fields: options.fields });
+  }
+  const body: Record<string, unknown> = {};
+  if (options.reason) body.reason = options.reason;
+  if (options.clear) body.clear = true;
+  await messageActionRequest(
+    `/api/emails/${encodeURIComponent(address)}/messages/${encodeURIComponent(options.messageId!)}/escalate`,
+    body,
+    options,
+    options.clear ? "Clearing escalation" : "Flagging for a human",
+    (data) => data.needs_human
+      ? `${S.success} Flagged for a human ${pc.dim("(conversation held, email.escalated fired)")}`
+      : `${S.success} Escalation cleared`,
+  );
+}
+
+async function remindCli(options: EmailOptions): Promise<void> {
+  const usage = 'Usage: domani email remind hello@example.com --message-id MSG_ID --at 2026-09-03T09:00:00Z [--note "chase the invoice"] [--clear]';
+  const { address } = requireAddress(options, usage);
+  if (!options.messageId) {
+    fail("Message ID required", { hint: usage, code: "validation_error", json: options.json, fields: options.fields });
+  }
+  if (!options.at && !options.clear) {
+    fail("Reminder time required", { hint: usage, code: "validation_error", json: options.json, fields: options.fields });
+  }
+  const body: Record<string, unknown> = {};
+  if (options.at) body.remind_at = options.at;
+  if (options.note) body.note = options.note;
+  if (options.clear) body.clear = true;
+  await messageActionRequest(
+    `/api/emails/${encodeURIComponent(address)}/messages/${encodeURIComponent(options.messageId!)}/remind`,
+    body,
+    options,
+    options.clear ? "Clearing reminder" : "Setting follow-up reminder",
+    (data) => data.remind_at
+      ? `${S.success} Reminder set for ${pc.cyan(String(data.remind_at))} ${pc.dim("(fires only if still unanswered)")}`
+      : `${S.success} Reminder cleared`,
+  );
+}
+
+async function contactsCli(options: EmailOptions): Promise<void> {
+  const params = new URLSearchParams();
+  if (options.q) params.set("q", options.q);
+  if (options.limit) params.set("limit", options.limit);
+  if (options.cursor) params.set("cursor", options.cursor);
+  const res = await apiRequest(`/api/contacts${params.size ? `?${params}` : ""}`);
+  const data = await res.json();
+  if (!res.ok) {
+    fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+  }
+  if (options.json) {
+    jsonOut(data, options.fields);
+    return;
+  }
+  const contacts = (data.contacts || []) as { address: string; name: string | null; notes: string | null; message_count: number; last_direction: string | null; last_seen_at: string }[];
+  if (contacts.length === 0) {
+    console.log(pc.dim("No contacts yet. The address book fills itself as mail flows in and out."));
+    return;
+  }
+  for (const c of contacts) {
+    const name = c.name ? ` ${pc.dim(c.name)}` : "";
+    const notes = c.notes ? ` ${pc.dim("-")} ${c.notes}` : "";
+    console.log(`${pc.cyan(c.address)}${name} ${pc.dim(`(${c.message_count} msg${c.message_count !== 1 ? "s" : ""}, last ${c.last_direction || "-"})`)}${notes}`);
+  }
+  if (data.next_cursor) console.log(pc.dim(`More: --cursor ${data.next_cursor}`));
+}
+
+/** Contact address for contact-add/contact-remove: rebuilt from the user@domain arg. */
+function contactAddress(options: EmailOptions, usage: string): string {
+  if (options.slug && options.domain) return `${options.slug}@${options.domain}`;
+  fail("Contact address required", { hint: usage, code: "validation_error", json: options.json, fields: options.fields });
+  return "";
+}
+
+async function contactAddCli(options: EmailOptions): Promise<void> {
+  const usage = 'Usage: domani email contact-add ada@example.com [--name "Ada"] [--notes "prefers short emails"]';
+  const address = contactAddress(options, usage);
+  const body: Record<string, unknown> = { address };
+  if (options.name !== undefined) body.name = options.name;
+  if (options.notes !== undefined) body.notes = options.notes;
+  const res = await apiRequest("/api/contacts", { method: "POST", body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) {
+    fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+  }
+  if (options.json) {
+    jsonOut(data, options.fields);
+    return;
+  }
+  console.log(`${S.success} Contact ${pc.cyan(address)} saved.`);
+}
+
+async function contactRemoveCli(options: EmailOptions): Promise<void> {
+  const usage = "Usage: domani email contact-remove ada@example.com";
+  const address = contactAddress(options, usage);
+  const res = await apiRequest(`/api/contacts/${encodeURIComponent(address)}`, { method: "DELETE" });
+  const data = await res.json();
+  if (!res.ok) {
+    fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+  }
+  if (options.json) {
+    jsonOut(data, options.fields);
+    return;
+  }
+  console.log(data.deleted ? `${S.success} Contact ${pc.cyan(address)} deleted.` : pc.dim(`No contact ${address}.`));
+}
+
+async function toneCli(options: EmailOptions): Promise<void> {
+  const usage = 'Usage: domani email tone hello@example.com [--set "lowercase, friendly, sign as Ada"] [--clear]';
+  const { address } = requireAddress(options, usage);
+  const encoded = encodeURIComponent(address);
+  if (options.set === undefined && !options.clear) {
+    const res = await apiRequest(`/api/emails/${encoded}`);
+    const data = await res.json();
+    if (!res.ok) {
+      fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+    }
+    if (options.json) {
+      jsonOut({ address, tone_notes: data.tone_notes ?? null }, options.fields);
+      return;
+    }
+    console.log(data.tone_notes ? data.tone_notes : pc.dim(`No tone notes on ${address}. Set them with --set.`));
+    return;
+  }
+  const res = await apiRequest(`/api/emails/${encoded}`, {
+    method: "PATCH",
+    body: JSON.stringify({ tone_notes: options.clear ? null : options.set }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+  }
+  if (options.json) {
+    jsonOut(data, options.fields);
+    return;
+  }
+  console.log(options.clear ? `${S.success} Tone notes cleared on ${pc.cyan(address)}.` : `${S.success} Tone notes set on ${pc.cyan(address)}.`);
 }
 
 // ── List messages ─────────────────────────────────

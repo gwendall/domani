@@ -439,6 +439,11 @@ Examples:
   domani email folders hi@myapp.dev                 # folder counts
   domani email archive hi@myapp.dev --message-ids m1,m2
   domani email send --from hi@myapp.dev --to bob@x.com --subject "Hello" --text "Hi Bob"
+  domani email send --from hi@myapp.dev --to bob@x.com --subject "Hi" --text "..." --send-at 2026-09-03T09:00:00Z
+  domani email escalate hi@myapp.dev --message-id MSG --reason "refund over $500"
+  domani email remind hi@myapp.dev --message-id MSG --at 2026-09-03T09:00:00Z --note "chase the invoice"
+  domani email contacts --q acme                    # address book, auto-fed by traffic
+  domani email tone hi@myapp.dev --set "lowercase, friendly, sign as Ada"
   domani email webhook hi@myapp.dev --url https://example.com/hook --authorization-env CURSOR_AUTH
   domani email webhook-test hi@myapp.dev              # one signed test; live inbound retries up to 3x
   domani email setup myapp.dev                      # setup email for domain
@@ -454,6 +459,15 @@ Examples:
   .option("--title <s>", "Email subject (alias for --subject)")
   .option("--text <t>", "Email body text (for send)")
   .option("--body <t>", "Email body text (alias for --text)")
+  .option("--send-at <iso>", "Schedule the send (ISO 8601, 30s to 30 days out); trash the message to cancel")
+  .option("--message-id <id>", "Message ID (for escalate/remind)")
+  .option("--reason <text>", "Why the human is needed (for escalate)")
+  .option("--at <iso>", "Reminder time, ISO 8601 (for remind)")
+  .option("--clear", "Clear the escalation flag, reminder, or tone notes")
+  .option("--q <query>", "Filter contacts by address or name")
+  .option("--name <name>", "Contact display name (for contact-add)")
+  .option("--notes <text>", "Contact notes (for contact-add)")
+  .option("--set <text>", "Tone notes to set on the mailbox (for tone)")
   .option("--in-reply-to <message-id>", "Message-ID of email being replied to (for threading)")
   .option("--references <message-ids>", "Space-separated Message-ID chain (for threading)")
   .option("--url <url>", "Webhook URL (for webhook)")
@@ -463,7 +477,7 @@ Examples:
   .option("--forward-to <email>", "Email address to forward inbound emails to (for forward)")
   .option("--direction <dir>", "Filter messages: in or out")
   .option("--folder <folder>", "System folder: inbox, archive, sent, spam, trash")
-  .option("--view <view>", "Virtual view: starred or all")
+  .option("--view <view>", "Virtual view: starred, all, or needs_human")
   .option("--message-ids <ids>", "Comma-separated message IDs for lifecycle actions")
   .option("--mailbox-ids <ids>", "Comma-separated mailbox IDs for shared inbox work")
   .option("--workspace <id>", "Create the mailbox inside this workspace (owner-only)")
