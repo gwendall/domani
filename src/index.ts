@@ -770,6 +770,7 @@ program
   .command("update")
   .description("Update domani CLI to the latest version")
   .option("--json", "Output as JSON (check version without updating)")
+  .option("--yes", "Perform the update even in JSON/non-interactive mode")
   .action(update);
 
 program
@@ -786,10 +787,13 @@ program
 
   // Show update notice after command completes
   const result = await versionCheck;
+  // Non-TTY runs are auto-switched to JSON mode, where plain `domani update`
+  // is check-only - point those callers at the flag that actually updates.
+  const updateCommand = process.stdout.isTTY ? "domani update" : "domani update --yes";
   if (result?.forced) {
-    console.error(`\n  ${pc.red("!")} CLI v${CLI_VERSION} is no longer supported. Run ${pc.bold("domani update")} to upgrade to v${result.update}\n`);
+    console.error(`\n  ${pc.red("!")} CLI v${CLI_VERSION} is no longer supported. Run ${pc.bold(updateCommand)} to upgrade to v${result.update}\n`);
     process.exit(1);
   } else if (result?.update) {
-    console.error(`\n  ${pc.yellow("!")} Update available: ${pc.dim(CLI_VERSION)} ${pc.dim("→")} ${pc.green(result.update)}  Run ${pc.bold("domani update")}\n`);
+    console.error(`\n  ${pc.yellow("!")} Update available: ${pc.dim(CLI_VERSION)} ${pc.dim("→")} ${pc.green(result.update)}  Run ${pc.bold(updateCommand)}\n`);
   }
 })();

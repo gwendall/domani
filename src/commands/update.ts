@@ -14,8 +14,9 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-export async function update(options?: { json?: boolean }): Promise<void> {
-  const s = createSpinner(!options?.json);
+export async function update(options?: { json?: boolean; yes?: boolean }): Promise<void> {
+  const jsonMode = !!options?.json;
+  const s = createSpinner(!jsonMode);
   s.start("Checking for updates");
 
   const apiUrl = getApiUrl();
@@ -33,22 +34,31 @@ export async function update(options?: { json?: boolean }): Promise<void> {
 
     if (compareVersions(latest, CLI_VERSION) <= 0) {
       s.stop(`${S.success} Already up to date (v${CLI_VERSION})`);
-      if (options?.json) {
+      if (jsonMode) {
         jsonOut({ current: CLI_VERSION, latest, up_to_date: true });
       }
       return;
     }
 
-    if (options?.json) {
+    if (jsonMode && !options?.yes) {
       s.stop("");
-      // In JSON mode, just report versions - don't auto-update
-      jsonOut({ current: CLI_VERSION, latest, up_to_date: false, hint: "Run `domani update` to upgrade." });
+      // JSON mode stays check-only unless --yes opts in: scripts rely on
+      // `--json` never replacing the binary out from under them. Non-TTY
+      // runs are auto-switched to JSON, so the hint must name a command
+      // that actually updates in that mode - plain `domani update` is the
+      // command that just produced this output.
+      jsonOut({
+        current: CLI_VERSION,
+        latest,
+        up_to_date: false,
+        hint: "Run `domani update --yes` to upgrade non-interactively, or `domani update` in an interactive terminal.",
+      });
       return;
     }
 
-    s.stop(`New version available: ${pc.cyan(CLI_VERSION)} ${S.arrow} ${pc.green(latest)}`);
+    s.stop(jsonMode ? "" : `New version available: ${pc.cyan(CLI_VERSION)} ${S.arrow} ${pc.green(latest)}`);
 
-    const s2 = createSpinner();
+    const s2 = createSpinner(!jsonMode);
     s2.start("Downloading update");
 
     const dlUrl = `${apiUrl}/cli/domani.js`;
@@ -85,6 +95,10 @@ export async function update(options?: { json?: boolean }): Promise<void> {
     fs.renameSync(tmpPath, realPath);
 
     s2.stop(`${S.success} Updated to v${latest}`);
+    if (jsonMode) {
+      jsonOut({ updated: true, from: CLI_VERSION, to: latest });
+      return;
+    }
     blank();
     console.log(`  ${pc.dim("Restart your terminal or run")} domani --version ${pc.dim("to verify")}`);
     blank();
