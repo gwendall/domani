@@ -49,6 +49,8 @@ import { uninstall } from "./commands/uninstall.js";
 import { schema } from "./commands/schema.js";
 import { cardList, cardAdd, cardRemove } from "./commands/card.js";
 import { workspace } from "./commands/workspace.js";
+import { httpRoute } from "./commands/http-route.js";
+import { hostnameBinding } from "./commands/hostname-binding.js";
 import { serveMcpBridge } from "./mcp-bridge.js";
 const program = new Command();
 
@@ -389,6 +391,49 @@ Examples:
   .action(sell);
 
 // ── Management ────────────────────────────────────────
+
+program
+  .command("route [action] [id]")
+  .description("Manage short-lived HTTP routes")
+  .option("--hostname <hostname>", "Public hostname; omitted only when token policy can auto-assign")
+  .option("--upstream <url>", "HTTP or HTTPS upstream origin")
+  .option("--domain <domain>", "Filter routes by owned domain")
+  .option("--status <status>", "Filter: active, expired, deleted, suspended, all")
+  .option("--expires-in <seconds>", "Lease duration in seconds (60-86400)")
+  .option("--host-header <mode>", "Host header mode: public or upstream")
+  .option("--upstream-verification <mode>", "Verification mode: none or signed_headers")
+  .option("--upstream-authorization-env <name>", "Read a write-only upstream Authorization value from this environment variable")
+  .option("--upstream-api-key-env <name>", "Read a write-only upstream X-Api-Key value from this environment variable")
+  .option("--clear-upstream-headers", "Clear stored write-only upstream authentication headers")
+  .option("--idempotency-key <key>", "Stable retry key; generated and persisted by default")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani route create --hostname preview.example.com --upstream http://bore.pub:45255
+  domani route list --domain example.com --status active
+  domani route refresh route_123 --expires-in 3600
+  domani route rotate-verification route_123
+  domani route rotate-headers route_123 --upstream-authorization-env SPRITES_AUTH
+  domani route delete route_123`)
+  .action(httpRoute);
+
+program
+  .command("binding [action] <domain> [id]")
+  .description("Manage HTTP edge hostname bindings and certificates")
+  .option("--hostname <hostname>", "Exact hostname, wildcard, or apex")
+  .option("--browser-mode <mode>", "stateless, dedicated_site, or trusted_same_site")
+  .option("--expected-zone-version <version>", "Zone version returned by binding plan")
+  .option("--acknowledgements <values>", "Comma-separated acknowledgement identifiers")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani binding list example.com
+  domani binding plan example.com --hostname '*.example.com' --browser-mode stateless
+  domani binding create example.com --hostname '*.example.com' --expected-zone-version <version>
+  domani binding verify example.com binding_123`)
+  .action((action, domain, id, options) => hostnameBinding(domain, action, id, options));
 
 program
   .command("list")
