@@ -50,6 +50,7 @@ import { schema } from "./commands/schema.js";
 import { cardList, cardAdd, cardRemove } from "./commands/card.js";
 import { workspace } from "./commands/workspace.js";
 import { httpRoute } from "./commands/http-route.js";
+import { assistant } from "./commands/assistant.js";
 import { hostnameBinding } from "./commands/hostname-binding.js";
 import { serveMcpBridge } from "./mcp-bridge.js";
 const program = new Command();
@@ -417,6 +418,65 @@ Examples:
   domani route rotate-headers route_123 --upstream-authorization-env SPRITES_AUTH
   domani route delete route_123`)
   .action(httpRoute);
+
+program
+  .command("assistant [action] [id]")
+  .description("Mailzero assistant: Today decisions, settings, consent, history import, activity (private preview)")
+  .option("--enable", "Show Today decisions and prepare drafts on demand (for set)")
+  .option("--disable", "Stop surfacing decisions; shadow analysis may continue (for set)")
+  .option("--shadow", "Analyze mail without surfacing decisions (for set)")
+  .option("--no-shadow", "Stop shadow analysis (for set)")
+  .option("--pause", "Pause every kind of processing (for set)")
+  .option("--resume", "Resume processing (for set)")
+  .option("--mailboxes <ids>", "Comma-separated owned mailbox IDs to process (for set, preview)")
+  .option("--none", "Disable every mailbox; cancels a running import (for set)")
+  .option("--days <n>", "History window in days (for set, preview; default 30)")
+  .option("--attachment-vision <mode>", "on or off: let the model read images in attachments (for set)")
+  .option("--consent", "Record explicit AI consent (required for preview)")
+  .option("--option <id>", "Decision option to choose (for choose)")
+  .option("--decision <id>", "Decision ID (for choose)")
+  .option("--decision-version <n>", "Decision version (for choose)")
+  .option("--item-version <n>", "Work item version fence (for choose, instruct, snooze, ignore, take-over, correct)")
+  .option("--text <text>", "Instruction or corrected value (for instruct, correct)")
+  .option("--until <iso>", "Snooze until this ISO 8601 date-time (for snooze)")
+  .option("--field <name>", "Analysis field to correct (for correct)")
+  .option("--limit <n>", "Number of activity entries (for activity)")
+  .option("--out <file>", "Write the export to a file instead of stdout (for export)")
+  .option("--yes", "Confirm deletion of derived data (for delete)")
+  .option("--idempotency-key <key>", "Stable retry key; generated and persisted by default")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Actions:
+  today                      Now, Needs you, Waiting, Upcoming, Handled
+  settings                   Opt-in state, consent, and mailbox scope
+  set                        Change settings (--enable, --shadow, --pause, --mailboxes, --none, --days)
+  preview                    Record consent and start a background history import
+  backfill | retry           Follow the import or requeue its terminal failures
+  item <id>                  One work item with its Decision and options
+  choose | instruct | snooze | ignore | take-over | correct <id>
+                             Record your decision on a work item (fenced by --item-version)
+  plan <id>                  Exact preview of a prepared reply
+  activity                   Content-free interaction and receipt log
+  export | delete            Export or delete derived assistant data (source mail is never touched)
+
+Examples:
+  domani assistant settings
+  domani assistant preview --mailboxes mbx_123,mbx_456 --consent
+  domani assistant backfill
+  domani assistant today
+  domani assistant item wi_789
+  domani assistant choose wi_789 --item-version 3 --decision dec_1 --decision-version 1 --option opt_send
+  domani assistant snooze wi_789 --item-version 3 --until 2026-09-03T09:00:00Z
+  domani assistant plan plan_42
+  domani assistant set --none
+  domani assistant delete --yes
+
+This command never sends mail. Choosing an option prepares an exact draft; review it
+with "assistant plan" and send it through the normal reply endpoint
+(POST /api/emails/{address}/messages/{id}/reply with assistant_plan_id) or from the app.
+Tokens need the assistant:read scope for reads and assistant:write for changes.`)
+  .action(assistant);
 
 program
   .command("binding [action] <domain> [id]")

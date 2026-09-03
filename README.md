@@ -172,6 +172,24 @@ domani email status --domain <domain>      Check email DNS health
 domani email connect --domain <domain> <provider>   Connect external provider (Gmail, Fastmail, Proton)
 ```
 
+### Mailzero assistant (private preview)
+
+```
+domani assistant today               Now, Needs you, Waiting, Upcoming, Handled
+domani assistant settings            Opt-in state, consent, and mailbox scope
+domani assistant set                 Change settings (--enable, --shadow, --pause, --mailboxes, --none, --days)
+domani assistant preview             Record consent and start a background history import (--mailboxes, --consent)
+domani assistant backfill|retry      Follow the import or requeue its terminal failures
+domani assistant item <id>           One work item with its Decision and options
+domani assistant choose <id>         Record a decision (--item-version, --decision, --decision-version, --option)
+domani assistant instruct|snooze|ignore|take-over|correct <id>
+domani assistant plan <id>           Exact preview of a prepared reply; nothing is sent by the CLI
+domani assistant activity            Content-free interaction and receipt log
+domani assistant export|delete       Export or delete derived data (source mail is never touched)
+```
+
+Tokens need `assistant:read` for reads and `assistant:write` for changes.
+
 ### DNS
 
 ```
