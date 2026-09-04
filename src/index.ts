@@ -437,6 +437,7 @@ program
   .option("--decision <id>", "Decision ID (for choose)")
   .option("--decision-version <n>", "Decision version (for choose)")
   .option("--item-version <n>", "Work item version fence (for choose, instruct, snooze, ignore, take-over, correct)")
+  .option("--scope <scope>", "With ignore: also mute the sender, sender_domain or situation (default item)")
   .option("--text <text>", "Instruction or corrected value (for instruct, correct)")
   .option("--until <iso>", "Snooze until this ISO 8601 date-time (for snooze)")
   .option("--field <name>", "Analysis field to correct (for correct)")

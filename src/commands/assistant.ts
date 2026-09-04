@@ -11,7 +11,7 @@ export type AssistantOptions = {
   enable?: boolean; disable?: boolean; shadow?: boolean; pause?: boolean; resume?: boolean;
   mailboxes?: string; none?: boolean; days?: string; attachmentVision?: string;
   consent?: boolean;
-  option?: string; decision?: string; decisionVersion?: string; itemVersion?: string;
+  option?: string; decision?: string; decisionVersion?: string; itemVersion?: string; scope?: string;
   text?: string; until?: string; field?: string;
   limit?: string; out?: string; yes?: boolean; idempotencyKey?: string;
 };
@@ -134,6 +134,10 @@ export function buildAssistantRequest(action: string | undefined, id: string | u
       if (options.itemVersion === undefined) throw new AssistantUsageError("--item-version is required", "Pass the work_item_version shown by: domani assistant item <id>");
       const type = INTERACTIONS[resolved];
       const body: Record<string, unknown> = { type, work_item_version: parseInteger(options.itemVersion, "--item-version", 1) };
+      if (type === "ignore" && options.scope) {
+        if (!["item", "sender", "sender_domain", "situation"].includes(options.scope)) throw new AssistantUsageError("--scope must be item, sender, sender_domain or situation", "Example: domani assistant ignore <id> --item-version 3 --scope sender");
+        body.scope = options.scope;
+      }
       if (type === "choose") {
         if (!options.option || !options.decision || options.decisionVersion === undefined) {
           throw new AssistantUsageError("--option, --decision and --decision-version are required", "They come from the Decision shown by: domani assistant item <id>");
@@ -183,13 +187,17 @@ type WorkItem = {
   mailbox?: { id?: string; address?: string; name?: string | null };
   source?: { type?: string; conversation_id?: string | null; event_id?: string; revision?: number };
   attention?: { level?: string; reason?: string; confidence?: string; deadline?: string | null };
+  ask?: string | null;
+  sender?: { address?: string; name?: string | null; kind?: string } | null;
+  recurrence?: { count?: number; first_seen_at?: string | null; last_seen_at?: string | null };
   decision?: { id?: string; version?: number; status?: string; question?: string; options?: Array<{ id: string; label: string; recommended?: boolean; outcome?: string }> } | null;
   plan?: { id?: string; status?: string; expires_at?: string } | null;
 };
 
 function itemLine(item: WorkItem): string[] {
-  const who = item.mailbox?.name || item.mailbox?.address || "";
-  return [pc.dim(item.id), who, (item.title || item.summary || "").slice(0, 70), item.attention?.deadline || ""];
+  const who = item.sender?.name || item.sender?.address?.split("@")[0] || item.mailbox?.name || item.mailbox?.address || "";
+  const count = item.recurrence?.count && item.recurrence.count > 1 ? pc.dim(`x${item.recurrence.count}`) : "";
+  return [pc.dim(item.id), who, `${(item.title || item.summary || "").slice(0, 60)} ${count}`.trim(), item.ask ? item.ask.slice(0, 50) : item.attention?.deadline || ""];
 }
 
 function showToday(data: Record<string, WorkItem[] | unknown>, options: AssistantOptions): void {
@@ -219,6 +227,9 @@ function showItem(data: Record<string, unknown>, options: AssistantOptions): voi
   row("ID", item.id); row("Version", String(item.version ?? "")); row("Status", item.status || "");
   row("Mailbox", item.mailbox?.name ? `${item.mailbox.name} <${item.mailbox.address || ""}>` : item.mailbox?.address || "");
   if (item.title) row("Title", item.title);
+  if (item.sender?.address) row("From", `${item.sender.name ? `${item.sender.name} ` : ""}<${item.sender.address}>${item.sender.kind && item.sender.kind !== "human" ? ` (${item.sender.kind})` : ""}`);
+  if (item.ask) row("Ask", item.ask);
+  if (item.recurrence?.count && item.recurrence.count > 1) row("Recurrence", `${item.recurrence.count} messages since ${(item.recurrence.first_seen_at || "").slice(0, 10)}`);
   row("Summary", item.summary || ""); if (item.attention?.reason) row("Why", item.attention.reason);
   if (item.attention?.deadline) row("Deadline", item.attention.deadline);
   if (item.source?.event_id) row("Source", `${item.source.type || "mail"} ${item.source.event_id}`);
