@@ -577,6 +577,7 @@ Examples:
   .option("--in-reply-to <message-id>", "Message-ID of email being replied to (for threading)")
   .option("--references <message-ids>", "Space-separated Message-ID chain (for threading)")
   .option("--url <url>", "Webhook URL (for webhook)")
+  .option("--events <list>", "Comma-separated webhook events: email.received plus delivery verdicts on outbound mail (email.delivered, email.bounced, email.failed, email.suppressed, email.complained, email.delayed); omit to keep the current subscription")
   .option("--authorization-env <name>", "Read the webhook Authorization value from this environment variable")
   .option("--api-key-env <name>", "Read the webhook X-API-Key value from this environment variable")
   .option("--clear-headers", "Clear custom webhook auth headers (requires --url)")
