@@ -52,6 +52,7 @@ import { workspace } from "./commands/workspace.js";
 import { httpRoute } from "./commands/http-route.js";
 import { assistant } from "./commands/assistant.js";
 import { agents } from "./commands/agents.js";
+import { mailbox } from "./commands/mailbox.js";
 import { hostnameBinding } from "./commands/hostname-binding.js";
 import { serveMcpBridge } from "./mcp-bridge.js";
 const program = new Command();
@@ -911,6 +912,25 @@ Examples:
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
   .action((action, slug, options) => agents(action, slug, options));
+
+program
+  .command("mailbox [action] [target]")
+  .description("Connected inboxes: connect Gmail, read the connection, import older mail, disconnect")
+  .addHelpText("after", `
+Examples:
+  domani mailbox connect gmail                         # the last 24 hours, then new mail as it arrives
+  domani mailbox connect gmail --window 30d            # or --since 2026-06-01
+  domani mailbox connector someone@gmail.com           # status and import progress
+  domani mailbox import someone@gmail.com --since 2026-01-01   # widen the import
+  domani mailbox disconnect someone@gmail.com          # remove your copies and the credential`)
+  .option("--since <date>", "Import the mail received after this ISO date")
+  .option("--window <window>", "A preset instead of --since: 24h (default), 7d, 30d, 1y")
+  .option("--workspace <id>", "Workspace the mailbox belongs to (for connect)")
+  .option("--no-open", "Do not open the browser (for connect)")
+  .option("--wait", "Wait until the inbox is connected (for connect)")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .action((action, target, options) => mailbox(action, target, options));
 
 // ── Introspection ──────────────────────────────────────
 
