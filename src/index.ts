@@ -915,14 +915,17 @@ Examples:
 
 program
   .command("mailbox [action] [target]")
-  .description("Connected inboxes: connect Gmail, read the connection, import older mail, disconnect")
+  .description("Connected inboxes: connect Gmail or any inbox by forwarding, read the connection, import older mail, disconnect")
   .addHelpText("after", `
 Examples:
   domani mailbox connect gmail                         # the last 24 hours, then new mail as it arrives
   domani mailbox connect gmail --window 30d            # or --since 2026-06-01
-  domani mailbox connector someone@gmail.com           # status and import progress
+  domani mailbox connect forwarding --address me@outlook.com   # a forwarding rule at any provider
+  domani mailbox verify me@outlook.com                 # send a probe through the rule
+  domani mailbox connector someone@gmail.com           # status, import progress, the Gmail confirmation code
   domani mailbox import someone@gmail.com --since 2026-01-01   # widen the import
   domani mailbox disconnect someone@gmail.com          # remove your copies and the credential`)
+  .option("--address <address>", "The inbox to connect by forwarding (for connect forwarding)")
   .option("--since <date>", "Import the mail received after this ISO date")
   .option("--window <window>", "A preset instead of --since: 24h (default), 7d, 30d, 1y")
   .option("--workspace <id>", "Workspace the mailbox belongs to (for connect)")

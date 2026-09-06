@@ -5,6 +5,7 @@ import { fail, heading, hint, jsonOut, openUrl, row, sleep } from "../ui.js";
 interface MailboxOptions {
   json?: boolean;
   fields?: string;
+  address?: string;
   since?: string;
   window?: string;
   workspace?: string;
@@ -12,7 +13,7 @@ interface MailboxOptions {
   wait?: boolean;
 }
 
-export const MAILBOX_ACTIONS = ["connect", "connector", "import", "disconnect"] as const;
+export const MAILBOX_ACTIONS = ["connect", "connector", "import", "verify", "disconnect"] as const;
 
 export class MailboxUsageError extends Error {
   constructor(message: string, public hint?: string) {
@@ -25,7 +26,11 @@ export class MailboxUsageError extends Error {
 export function buildMailboxRequest(action: string | undefined, target: string | undefined, options: MailboxOptions): { path: string; method: "GET" | "POST" | "DELETE"; body?: Record<string, unknown> } {
   switch (action) {
     case "connect": {
-      if ((target ?? "gmail") !== "gmail") throw new MailboxUsageError(`Unknown provider "${target}".`, "Only gmail can be connected today; forwarding and outlook follow.");
+      if (target === "forwarding") {
+        if (!options.address) throw new MailboxUsageError("--address is required.", "domani mailbox connect forwarding --address someone@gmail.com");
+        return { path: "/api/emails/connect/forwarding", method: "POST", body: { address: options.address, ...(options.workspace ? { workspace_id: options.workspace } : {}) } };
+      }
+      if ((target ?? "gmail") !== "gmail") throw new MailboxUsageError(`Unknown provider "${target}".`, "gmail (the API) or forwarding (a rule at any provider); outlook follows.");
       if (options.since && options.window) throw new MailboxUsageError("Use --since or --window, not both.");
       return { path: "/api/emails/connect/gmail", method: "POST", body: { ...(options.since ? { since: options.since } : {}), ...(options.window ? { window: options.window } : {}), ...(options.workspace ? { workspace_id: options.workspace } : {}) } };
     }
@@ -36,6 +41,9 @@ export function buildMailboxRequest(action: string | undefined, target: string |
       if (!target) throw new MailboxUsageError("Address required.", "domani mailbox import someone@gmail.com --since 2026-06-01");
       if (!options.since) throw new MailboxUsageError("--since is required.", "The date the import should reach back to, for example --since 2026-06-01.");
       return { path: `/api/emails/${encodeURIComponent(target.toLowerCase())}/import`, method: "POST", body: { since: options.since } };
+    case "verify":
+      if (!target) throw new MailboxUsageError("Address required.", "domani mailbox verify someone@gmail.com");
+      return { path: `/api/emails/${encodeURIComponent(target.toLowerCase())}/connector/verify`, method: "POST" };
     case "disconnect":
       if (!target) throw new MailboxUsageError("Address required.", "domani mailbox disconnect someone@gmail.com");
       return { path: `/api/emails/${encodeURIComponent(target.toLowerCase())}/connector`, method: "DELETE" };
@@ -49,6 +57,13 @@ function printConnector(data: Record<string, unknown>): void {
   row("Status", String(data.status));
   row("Phase", String(data.phase) + (data.paused_reason ? ` (${data.paused_reason})` : ""));
   row("Imported since", data.import_since ? new Date(String(data.import_since)).toLocaleString() : "-");
+  const forwarding = data.forwarding as { address?: string | null; forwarded?: number; last_forwarded_at?: string | null; confirmation?: { code: string; url: string | null } | null; probe?: { sent_at: string; returned_at: string | null } | null } | undefined;
+  if (forwarding) {
+    row("Forward to", String(forwarding.address ?? "-"));
+    row("Forwarded", `${forwarding.forwarded ?? 0}${forwarding.last_forwarded_at ? `, last ${new Date(forwarding.last_forwarded_at).toLocaleString()}` : ""}`);
+    if (forwarding.confirmation) row("Gmail confirmation", `${pc.bold(forwarding.confirmation.code)}${forwarding.confirmation.url ? `  ${forwarding.confirmation.url}` : ""}`);
+    if (forwarding.probe) row("Probe", forwarding.probe.returned_at ? `came back ${new Date(forwarding.probe.returned_at).toLocaleString()}` : `sent ${new Date(forwarding.probe.sent_at).toLocaleString()}, not back yet`);
+  }
   const run = data.import_run as Record<string, unknown> | null;
   if (run) {
     row("Import", `${run.status}: ${run.copied} copied, ${run.analysed}/${run.to_analyse} analysed${run.listing_done ? "" : ", still listing"}`);
@@ -69,6 +84,20 @@ export async function mailbox(action: string | undefined, target: string | undef
   const response = await apiRequest(request.path, { method: request.method, ...(request.body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(request.body) } : {}) });
   const data = await response.json().catch(() => ({})) as Record<string, unknown> & { error?: string; message?: string; hint?: string };
   if (!response.ok) return fail(data.error || data.message || "Request failed", { hint: data.hint, status: response.status, json: options.json, code: String(data.code ?? "request_failed") });
+  if (action === "connect" && target === "forwarding") {
+    if (options.json) return jsonOut(data, options.fields);
+    heading("Connect your inbox by forwarding");
+    row("Inbox", String(data.address));
+    row("Forward to", pc.cyan(String(data.forwarding_address)));
+    row("Status", String(data.status));
+    const instructions = data.instructions as Record<string, string[]> | undefined;
+    for (const [provider, steps] of Object.entries(instructions ?? {})) {
+      console.log(`\n  ${pc.bold(provider === "gmail" ? "Gmail" : provider === "outlook" ? "Outlook" : "Any provider")}`);
+      steps.forEach((step, index) => console.log(`  ${index + 1}. ${step}`));
+    }
+    hint(`Then: domani mailbox verify ${data.address} sends a probe; domani mailbox connector ${data.address} shows the confirmation code and the status.`);
+    return;
+  }
   if (action === "connect") {
     if (options.json && !options.wait) return jsonOut(data, options.fields);
     heading("Connect your Gmail inbox");
@@ -97,6 +126,13 @@ export async function mailbox(action: string | undefined, target: string | undef
   }
   if (options.json) return jsonOut(data, options.fields);
   if (action === "connector") return printConnector(data);
+  if (action === "verify") {
+    heading("Probe sent");
+    row("To", String(data.sent_to));
+    row("Comes back through", String(data.forwarding_address));
+    hint("When the rule brings it back, the connection is active: domani mailbox connector <address>");
+    return;
+  }
   if (action === "import") {
     heading("Importing older mail");
     row("From", new Date(String(data.import_since)).toLocaleString());

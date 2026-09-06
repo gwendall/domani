@@ -12,6 +12,14 @@ describe("domani mailbox request planning", () => {
     assert.deepEqual(buildMailboxRequest("disconnect", "someone@gmail.com", {}), { method: "DELETE", path: "/api/emails/someone%40gmail.com/connector" });
   });
 
+  it("connects an inbox by forwarding and sends the probe", () => {
+    assert.deepEqual(buildMailboxRequest("connect", "forwarding", { address: "Me@Outlook.com" }), { method: "POST", path: "/api/emails/connect/forwarding", body: { address: "Me@Outlook.com" } });
+    assert.deepEqual(buildMailboxRequest("connect", "forwarding", { address: "me@outlook.com", workspace: "ws_1" }), { method: "POST", path: "/api/emails/connect/forwarding", body: { address: "me@outlook.com", workspace_id: "ws_1" } });
+    assert.throws(() => buildMailboxRequest("connect", "forwarding", {}), (error: unknown) => error instanceof MailboxUsageError);
+    assert.deepEqual(buildMailboxRequest("verify", "Me@Outlook.com", {}), { method: "POST", path: "/api/emails/me%40outlook.com/connector/verify" });
+    assert.throws(() => buildMailboxRequest("verify", undefined, {}), (error: unknown) => error instanceof MailboxUsageError);
+  });
+
   it("refuses an unknown provider, both bounds at once, and a missing address or date", () => {
     assert.throws(() => buildMailboxRequest("connect", "outlook", {}), (error: unknown) => error instanceof MailboxUsageError);
     assert.throws(() => buildMailboxRequest("connect", "gmail", { since: "2026-06-01", window: "7d" }), (error: unknown) => error instanceof MailboxUsageError);
