@@ -51,6 +51,7 @@ import { cardList, cardAdd, cardRemove } from "./commands/card.js";
 import { workspace } from "./commands/workspace.js";
 import { httpRoute } from "./commands/http-route.js";
 import { assistant } from "./commands/assistant.js";
+import { agents } from "./commands/agents.js";
 import { hostnameBinding } from "./commands/hostname-binding.js";
 import { serveMcpBridge } from "./mcp-bridge.js";
 const program = new Command();
@@ -443,6 +444,8 @@ program
   .option("--field <name>", "Analysis field to correct (for correct)")
   .option("--limit <n>", "Number of activity entries (for activity)")
   .option("--out <file>", "Write the export to a file instead of stdout (for export)")
+  .option("--correspondent <email>", "The person you are about to answer (for brief)")
+  .option("--mailbox <address>", "Restrict the correspondent brief to one mailbox (for brief)")
   .option("--yes", "Confirm deletion of derived data (for delete)")
   .option("--idempotency-key <key>", "Stable retry key; generated and persisted by default")
   .option("--json", "Output as JSON")
@@ -554,9 +557,24 @@ Examples:
   domani email webhook-test hi@myapp.dev              # one signed test; live inbound retries up to 3x
   domani email setup myapp.dev                      # setup email for domain
   domani email status myapp.dev                     # check email DNS health
-  domani email delete --domain myapp.dev --slug hi  # delete mailbox`)
+  domani email delete --domain myapp.dev --slug hi  # delete mailbox
+  domani email search "the invoice from tucows"     # by meaning and by words, every mailbox
+  domani email threads --from hi@myapp.dev          # conversations, newest activity first
+  domani email thread THREAD --from hi@myapp.dev    # one conversation, oldest first
+  domani email label --from hi@myapp.dev --message-ids m1 --add billing,urgent
+  domani email facts MSG --from hi@myapp.dev        # what the assistant established
+  domani email extract MSG --from hi@myapp.dev --schema '{"type":"object","properties":{"total":{"type":"number"}}}'`)
   .option("--domain <domain>", "Domain name")
   .option("--slug <slug>", "Mailbox slug (local part before @)")
+  .option("--query <text>", "Search text (for search; or pass it as the argument; --mode hybrid|semantic|keyword picks the ranking)")
+  .option("--since <iso>", "Only mail or threads after this time (for search, threads)")
+  .option("--until <iso>", "Only mail before this time (for search)")
+  .option("--label <labels>", "Comma-separated labels, any of (for search, threads, inbox)")
+  .option("--add <labels>", "Labels to add (for label)")
+  .option("--remove <labels>", "Labels to remove (for label; --set <labels> replaces every label)")
+  .option("--schema <json>", "JSON schema of the fields to extract, inline or @file (for extract)")
+  .option("--instructions <text>", "Guidance for the extraction (for extract)")
+  .option("--thread-id <id>", "Thread ID (for thread; or pass it as the argument)")
   .option("--from <email>", "Sender address user@domain (alternative to --domain + --slug)")
   .option("--to <email>", "Recipient email address (for send)")
   .option("--cc <emails>", "CC recipients, comma-separated (for send)")
@@ -877,6 +895,22 @@ program
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
   .action((arg2, options) => email("inbox", arg2, options));
+
+program
+  .command("agents [action] [slug]")
+  .description("Agent identities: give an agent its own API key, list or revoke its keys")
+  .addHelpText("after", `
+Examples:
+  domani agents list                                # your agent identities
+  domani agents token dave --name "Dave on the pod" # mint a confined key for dave.domani.run
+  domani agents tokens dave                         # the keys of dave
+  domani agents revoke-token dave --token-id tok_1  # revoke one`)
+  .option("--name <name>", "Key name (for token)")
+  .option("--mailboxes <ids>", "Comma-separated mailbox IDs the key is confined to (for token)")
+  .option("--token-id <id>", "Token ID (for revoke-token)")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .action((action, slug, options) => agents(action, slug, options));
 
 // ── Introspection ──────────────────────────────────────
 

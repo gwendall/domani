@@ -21,10 +21,11 @@ import {
 import { requireValidDomain } from "../validate.js";
 import { pickDomain } from "../prompt.js";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { resolveWebhookHeadersFromEnv, webhookHeaderNames } from "../webhook-headers.js";
 
 /** Known subcommands (used for legacy detection) */
-const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes", "coordination", "presence", "release-presence", "escalate", "remind", "contacts", "contact-add", "contact-remove", "tone"];
+const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes", "coordination", "presence", "release-presence", "escalate", "remind", "contacts", "contact-add", "contact-remove", "tone", "search", "threads", "thread", "label", "facts", "extract"];
 
 /** Provider display names */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -80,6 +81,15 @@ interface EmailOptions {
   idempotencyKey?: string;
   clientId?: string;
   leaseId?: string;
+  query?: string;
+  since?: string;
+  until?: string;
+  label?: string;
+  add?: string;
+  remove?: string;
+  schema?: string;
+  instructions?: string;
+  threadId?: string;
   mode?: string;
   acquireLease?: boolean;
   workspace?: string;
@@ -216,6 +226,18 @@ export async function email(
       return collaborationActivityCli(options);
     case "changes":
       return mailboxChangesCli(options);
+    case "search":
+      return searchMailCli(arg2, options);
+    case "threads":
+      return threadsCli(options);
+    case "thread":
+      return threadCli(arg2, options);
+    case "label":
+      return labelCli(options);
+    case "facts":
+      return factsCli(arg2, options);
+    case "extract":
+      return extractCli(arg2, options);
     case "coordination":
       return coordinationSnapshotCli(options);
     case "presence":
@@ -346,6 +368,135 @@ async function mailboxChangesCli(options: EmailOptions): Promise<void> {
   ]), [12, 32, 40, 24]);
   row("Next cursor", data.next_cursor);
   if (data.has_more) hint("More changes are available; call again with the next cursor.");
+}
+
+function collectList(value: string | undefined): string[] {
+  return (value || "").split(",").map((part) => part.trim()).filter(Boolean);
+}
+
+/** Search mail by meaning and by words across every mailbox you may read (AIP-10). */
+async function searchMailCli(arg2: string | undefined, options: EmailOptions): Promise<void> {
+  const query = (options.query || (arg2 && !arg2.includes("@") ? arg2 : undefined) || "").trim();
+  if (!query) fail("Query required", { hint: 'Usage: domani email search "the invoice from tucows" [--from hi@myapp.dev] [--mode hybrid|semantic|keyword] [--limit 10] [--label billing]', code: "validation_error", json: options.json, fields: options.fields });
+  const params = new URLSearchParams({ q: query });
+  if (options.mode) params.set("mode", options.mode);
+  if (options.limit) params.set("limit", options.limit);
+  if (options.slug && options.domain) params.set("mailbox", `${options.slug}@${options.domain}`);
+  if (options.folder) params.set("folder", options.folder);
+  if (options.since) params.set("since", options.since);
+  if (options.until) params.set("until", options.until);
+  if (options.label) params.set("label", options.label);
+  const response = await apiRequest(`/api/emails/search?${params}`);
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading(`Search: ${query}`);
+  if (!data.results.length) { console.log(`  ${pc.dim(data.hint || "No mail matches this search.")}`); return; }
+  table(["Why", "From", "Subject", "Mailbox", "Message"], data.results.map((hit: { why: string; message: { from: string; subject: string | null; mailbox: string; id: string } }) => [
+    hit.why, hit.message.from.slice(0, 28), (hit.message.subject || "").slice(0, 44), hit.message.mailbox.slice(0, 28), hit.message.id,
+  ]), [8, 30, 46, 30, 28]);
+  hint(`${data.results.length} result${data.results.length === 1 ? "" : "s"} in ${data.took_ms} ms, mode ${data.mode}. Open one with: domani email thread <thread_id> --from <mailbox>`);
+}
+
+/** The conversations of a mailbox, newest activity first (AIP-13). */
+async function threadsCli(options: EmailOptions): Promise<void> {
+  const { address } = requireAddress(options, "Usage: domani email threads --from hi@myapp.dev [--folder inbox] [--since <iso>] [--limit 25] [--cursor <cursor>] [--label billing]");
+  const params = new URLSearchParams();
+  if (options.folder) params.set("folder", options.folder);
+  if (options.since) params.set("since", options.since);
+  if (options.limit) params.set("limit", options.limit);
+  if (options.cursor) params.set("cursor", options.cursor);
+  if (options.label) params.set("label", options.label);
+  const response = await apiRequest(`/api/emails/${encodeURIComponent(address)}/threads${params.size ? `?${params}` : ""}`);
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading(`Threads in ${address}`);
+  if (!data.threads.length) { console.log(`  ${pc.dim("No conversations here.")}`); return; }
+  table(["Messages", "Unread", "Subject", "With", "Last", "Thread"], data.threads.map((thread: { message_count: number; unread_count: number; subject: string | null; participants: string[]; last_message_at: string; id: string }) => [
+    String(thread.message_count), String(thread.unread_count), (thread.subject || "").slice(0, 40), thread.participants.filter((p) => p !== address).join(", ").slice(0, 30), thread.last_message_at.slice(0, 16), thread.id,
+  ]), [9, 7, 42, 32, 17, 28]);
+  if (data.next_cursor) row("Next cursor", data.next_cursor);
+}
+
+/** One conversation, oldest message first. */
+async function threadCli(arg2: string | undefined, options: EmailOptions): Promise<void> {
+  const threadId = options.threadId || (arg2 && !arg2.includes("@") ? arg2 : undefined);
+  const { address } = requireAddress(options, "Usage: domani email thread <thread_id> --from hi@myapp.dev");
+  if (!threadId) fail("Thread ID required", { hint: "Usage: domani email thread <thread_id> --from hi@myapp.dev", code: "validation_error", json: options.json, fields: options.fields });
+  const response = await apiRequest(`/api/emails/${encodeURIComponent(address)}/threads/${encodeURIComponent(threadId!)}`);
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading(data.subject || "Conversation");
+  row("Messages", String(data.message_count)); row("Unread", String(data.unread_count)); row("With", data.participants.join(", "));
+  for (const message of data.messages as Array<{ id: string; direction: string; from: string; created_at: string; text: string | null; labels?: string[] }>) {
+    console.log(`
+  ${pc.bold(message.direction === "out" ? "→" : "←")} ${message.from}  ${pc.dim(message.created_at.slice(0, 16))}${message.labels?.length ? `  ${pc.dim(`[${message.labels.join(", ")}]`)}` : ""}  ${pc.dim(message.id)}`);
+    if (message.text) console.log(`    ${message.text.replace(/\s+/g, " ").trim().slice(0, 300)}`);
+  }
+}
+
+/** Add, remove or replace the labels of messages (AIP-14). */
+async function labelCli(options: EmailOptions): Promise<void> {
+  const { address } = requireAddress(options, "Usage: domani email label --from hi@myapp.dev --message-ids m1,m2 --add billing[,urgent] [--remove old] | --set a,b");
+  const messageIds = collectList(options.messageIds);
+  const add = collectList(options.add); const remove = collectList(options.remove); const set = options.set === undefined ? undefined : collectList(options.set);
+  if (!messageIds.length || (!add.length && !remove.length && set === undefined)) fail("Message IDs and labels required", { hint: "Usage: domani email label --from hi@myapp.dev --message-ids m1,m2 --add billing[,urgent] [--remove old] | --set a,b", code: "validation_error", json: options.json, fields: options.fields });
+  const body: Record<string, unknown> = { message_ids: messageIds, action: "label", idempotency_key: options.idempotencyKey || randomUUID() };
+  if (add.length) body.add = add;
+  if (remove.length) body.remove = remove;
+  if (set !== undefined) body.set = set;
+  const response = await apiRequest(`/api/emails/${encodeURIComponent(address)}/messages/actions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  const results = (data.results || []) as Array<{ message_id: string; ok: boolean; changed?: boolean; error?: { message: string } }>;
+  heading("Labels");
+  table(["Message", "Result"], results.map((result) => [result.message_id, result.ok ? (result.changed ? "updated" : "unchanged") : result.error?.message || "failed"]), [30, 40]);
+}
+
+/** What the assistant established about a message (AIP-15). */
+async function factsCli(arg2: string | undefined, options: EmailOptions): Promise<void> {
+  const messageId = options.messageIds || (arg2 && !arg2.includes("@") ? arg2 : undefined);
+  const { address } = requireAddress(options, "Usage: domani email facts <message_id> --from hi@myapp.dev");
+  if (!messageId) fail("Message ID required", { hint: "Usage: domani email facts <message_id> --from hi@myapp.dev", code: "validation_error", json: options.json, fields: options.fields });
+  const response = await apiRequest(`/api/emails/${encodeURIComponent(address)}/messages/${encodeURIComponent(messageId!)}/facts`);
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading("Facts");
+  if (!data.analysed) { row("Analysed", "no"); row("Reason", data.reason); hint(data.reason === "not_enabled" ? "Enable the mailbox in the assistant: domani assistant set --enable --mailboxes <id>" : "The analysis has not happened yet; try again in a minute."); return; }
+  row("Analysis", `${data.analysis.id} (${data.analysis.generated_at.slice(0, 16)}, ${data.analysis.coverage})`);
+  if (data.facts.length) table(["Subject", "Predicate", "Value", "Basis"], data.facts.map((fact: { subject: string | null; predicate: string | null; value: { value: string | null; currency: string | null } | null; object: string | null; basis: string | null }) => [
+    (fact.subject || "").slice(0, 28), (fact.predicate || "").slice(0, 28), `${fact.value?.value ?? fact.object ?? ""}${fact.value?.currency ? ` ${fact.value.currency}` : ""}`.slice(0, 32), fact.basis || "",
+  ]), [30, 30, 34, 18]);
+  else console.log(`  ${pc.dim("No claim recorded.")}`);
+  for (const loop of data.commitments as Array<{ who: string; what: string }>) row("Promised", `${loop.who}: ${loop.what}`);
+  for (const loop of data.expectations as Array<{ who: string; what: string }>) row("Awaited", `${loop.who}: ${loop.what}`);
+}
+
+/** Extract the fields you need from a message with your own schema (AIP-16). */
+async function extractCli(arg2: string | undefined, options: EmailOptions): Promise<void> {
+  const messageId = options.messageIds || (arg2 && !arg2.includes("@") ? arg2 : undefined);
+  const usage = 'Usage: domani email extract <message_id> --from hi@myapp.dev --schema \'{"type":"object","properties":{"total":{"type":"number"}}}\' [--instructions "amounts in EUR"]  (or --schema @fields.json)';
+  const { address } = requireAddress(options, usage);
+  if (!messageId || !options.schema) fail("Message ID and --schema required", { hint: usage, code: "validation_error", json: options.json, fields: options.fields });
+  let schema: unknown;
+  try {
+    const raw = options.schema!.startsWith("@") ? readFileSync(options.schema!.slice(1), "utf8") : options.schema!;
+    schema = JSON.parse(raw);
+  } catch (error) {
+    fail("Schema must be JSON (inline or @file)", { hint: error instanceof Error ? error.message : String(error), code: "validation_error", json: options.json, fields: options.fields });
+  }
+  const response = await apiRequest(`/api/emails/${encodeURIComponent(address)}/messages/${encodeURIComponent(messageId!)}/extract`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ schema, ...(options.instructions ? { instructions: options.instructions } : {}) }) });
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading("Extraction");
+  row("Confidence", String(data.confidence)); row("Cached", data.cached ? "yes" : "no"); row("Model", data.model);
+  for (const [key, value] of Object.entries(data.data as Record<string, unknown>)) row(key, value === null ? pc.dim("null") : typeof value === "object" ? JSON.stringify(value) : String(value));
+  for (const quote of data.evidence_quotes as string[]) console.log(`  ${pc.dim(`"${quote.slice(0, 120)}"`)}`);
 }
 
 async function collaborationListCli(options: EmailOptions): Promise<void> {

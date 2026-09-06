@@ -7,6 +7,8 @@ import { blank, createSpinner, fail, heading, jsonOut, row, S, table } from "../
 export const ASSISTANT_CONSENT_VERSION = "mailzero-personal-ai.v1";
 
 export type AssistantOptions = {
+  correspondent?: string;
+  mailbox?: string;
   json?: boolean; fields?: string;
   enable?: boolean; disable?: boolean; shadow?: boolean; pause?: boolean; resume?: boolean;
   mailboxes?: string; none?: boolean; days?: string; attachmentVision?: string;
@@ -43,7 +45,7 @@ const INTERACTIONS: Record<string, "choose" | "instruct" | "take_over" | "snooze
 export const ASSISTANT_ACTIONS = [
   "today", "settings", "set", "preview", "backfill", "retry", "item",
   "choose", "instruct", "snooze", "ignore", "take-over", "correct",
-  "plan", "activity", "export", "delete",
+  "plan", "activity", "export", "delete", "brief", "facts",
 ] as const;
 
 function parseMailboxes(value: string | undefined): string[] {
@@ -112,6 +114,16 @@ export function buildAssistantRequest(action: string | undefined, id: string | u
     case "item":
       if (!id) throw new AssistantUsageError("Work item ID is required", "Usage: domani assistant item <id>");
       return { method: "GET", path: `/api/assistant/work-items/${encodeURIComponent(id)}` };
+    case "brief": {
+      if (id) return { method: "GET", path: `/api/assistant/work-items/${encodeURIComponent(id)}/brief` };
+      if (!options.correspondent) throw new AssistantUsageError("Work item ID or --correspondent is required", "Usage: domani assistant brief <id> | domani assistant brief --correspondent ada@example.com [--mailbox hi@myapp.dev]");
+      const params = new URLSearchParams({ correspondent: options.correspondent });
+      if (options.mailbox) params.set("mailbox", options.mailbox);
+      return { method: "GET", path: `/api/assistant/brief?${params}` };
+    }
+    case "facts":
+      if (!id) throw new AssistantUsageError("Work item ID is required", "Usage: domani assistant facts <id>");
+      return { method: "GET", path: `/api/assistant/work-items/${encodeURIComponent(id)}/facts` };
     case "plan":
       if (!id) throw new AssistantUsageError("Action plan ID is required", "Usage: domani assistant plan <id>");
       return { method: "GET", path: `/api/assistant/action-plans/${encodeURIComponent(id)}` };
@@ -220,6 +232,42 @@ function showToday(data: Record<string, WorkItem[] | unknown>, options: Assistan
   blank();
 }
 
+interface Brief {
+  title?: string; summary?: string; ask?: string | null;
+  situation?: { status?: string; attention?: { level?: string; reason?: string }; occurrences?: number; sender?: { address?: string; name?: string | null } | null };
+  story?: Array<{ occurred_at: string; sender: string; title: string; analysed: boolean }>;
+  facts?: Array<{ subject: string | null; predicate: string | null; value: { value: string | null; currency: string | null } | null; object: string | null }>;
+  awaiting?: Array<{ who: string; what: string; since: string; overdue: boolean }>;
+  commitments?: Array<{ who: string; what: string; overdue: boolean }>;
+  settled?: Array<{ kind: string; who: string; what: string; status: string; at: string }>;
+  suggested_next?: { action: string; reason: string; source: string } | null;
+  decision?: { question?: string; options?: Array<{ id: string; label: string; recommended: boolean }> } | null;
+}
+
+function showBrief(data: Record<string, unknown>, options: AssistantOptions): void {
+  if (options.json) return jsonOut(data, options.fields);
+  const brief = ((data.brief as Brief | null | undefined) ?? (data as Brief));
+  if (data.correspondent && !data.brief) {
+    blank(); heading(`Brief for ${data.correspondent}`);
+    console.log(`  ${pc.dim("Nothing analysed from this person yet.")}`);
+    for (const mail of (data.recent_mail as Array<{ subject: string | null; received_at: string; mailbox: string }>) || []) row(mail.received_at.slice(0, 10), `${mail.subject || ""} (${mail.mailbox})`);
+    return;
+  }
+  blank(); heading(brief.title || "Brief");
+  if (brief.situation) row("Status", `${brief.situation.status || ""}${brief.situation.attention?.level ? ` · ${brief.situation.attention.level}` : ""}${brief.situation.occurrences && brief.situation.occurrences > 1 ? ` · ${brief.situation.occurrences} messages` : ""}`);
+  if (brief.situation?.sender?.address) row("With", `${brief.situation.sender.name ? `${brief.situation.sender.name} ` : ""}<${brief.situation.sender.address}>`);
+  if (brief.summary) row("Summary", brief.summary);
+  if (brief.ask) row("Ask", brief.ask);
+  for (const line of brief.story || []) row(line.occurred_at.slice(0, 10), `${line.title}${line.analysed ? "" : pc.dim(" (not analysed)")}`);
+  for (const fact of brief.facts || []) row("Fact", `${fact.subject || ""} ${fact.predicate || ""} ${fact.value?.value ?? fact.object ?? ""}${fact.value?.currency ? ` ${fact.value.currency}` : ""}`.trim());
+  for (const loop of brief.awaiting || []) row(loop.overdue ? pc.red("Awaited") : "Awaited", `${loop.who}: ${loop.what} (since ${loop.since.slice(0, 10)})`);
+  for (const loop of brief.commitments || []) row(loop.overdue ? pc.red("Promised") : "Promised", `${loop.who}: ${loop.what}`);
+  for (const entry of (brief.settled || []).slice(0, 5)) row("Settled", `${entry.what} (${entry.status}, ${entry.at.slice(0, 10)})`);
+  if (brief.decision?.question) row("Decision", `${brief.decision.question} ${(brief.decision.options || []).map((option) => `${option.recommended ? "★ " : ""}${option.label}`).join(" / ")}`);
+  if (brief.suggested_next) row("Next", `${brief.suggested_next.action} ${pc.dim(`(${brief.suggested_next.reason})`)}`);
+  if (data.related && (data.related as unknown[]).length) row("Also", `${(data.related as unknown[]).length} other item(s) from this person`);
+}
+
 function showItem(data: Record<string, unknown>, options: AssistantOptions): void {
   if (options.json) return jsonOut(data, options.fields);
   const item = (data.work_item || data) as WorkItem;
@@ -322,6 +370,8 @@ export async function assistant(action: string | undefined, id: string | undefin
     case "settings": return showSettings(data, options);
     case "backfill": return showBackfill(data, options);
     case "item": return showItem(data, options);
+    case "brief": return showBrief(data, options);
+    case "facts": return jsonOut(data, options.fields);
     case "plan": return showPlan(data, options);
     case "activity": return showActivity(data, options);
     case "export": {
