@@ -30,9 +30,10 @@ export function buildMailboxRequest(action: string | undefined, target: string |
         if (!options.address) throw new MailboxUsageError("--address is required.", "domani mailbox connect forwarding --address someone@gmail.com");
         return { path: "/api/emails/connect/forwarding", method: "POST", body: { address: options.address, ...(options.workspace ? { workspace_id: options.workspace } : {}) } };
       }
-      if ((target ?? "gmail") !== "gmail") throw new MailboxUsageError(`Unknown provider "${target}".`, "gmail (the API) or forwarding (a rule at any provider); outlook follows.");
+      const provider = target ?? "gmail";
+      if (provider !== "gmail" && provider !== "outlook") throw new MailboxUsageError(`Unknown provider "${target}".`, "gmail or outlook (the APIs), or forwarding (a rule at any provider).");
       if (options.since && options.window) throw new MailboxUsageError("Use --since or --window, not both.");
-      return { path: "/api/emails/connect/gmail", method: "POST", body: { ...(options.since ? { since: options.since } : {}), ...(options.window ? { window: options.window } : {}), ...(options.workspace ? { workspace_id: options.workspace } : {}) } };
+      return { path: `/api/emails/connect/${provider}`, method: "POST", body: { ...(options.since ? { since: options.since } : {}), ...(options.window ? { window: options.window } : {}), ...(options.workspace ? { workspace_id: options.workspace } : {}) } };
     }
     case "connector":
       if (!target) throw new MailboxUsageError("Address required.", "domani mailbox connector someone@gmail.com");

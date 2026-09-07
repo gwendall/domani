@@ -943,6 +943,7 @@ program
 Examples:
   domani mailbox connect gmail                         # the last 24 hours, then new mail as it arrives
   domani mailbox connect gmail --window 30d            # or --since 2026-06-01
+  domani mailbox connect outlook --window 7d           # an Outlook inbox through Microsoft Graph
   domani mailbox connect forwarding --address me@outlook.com   # a forwarding rule at any provider
   domani mailbox verify me@outlook.com                 # send a probe through the rule
   domani mailbox connector someone@gmail.com           # status, import progress, the Gmail confirmation code
