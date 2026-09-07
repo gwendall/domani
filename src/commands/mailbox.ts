@@ -60,11 +60,13 @@ function printConnector(data: Record<string, unknown>): void {
   row("Status", String(data.status));
   row("Phase", String(data.phase) + (data.paused_reason ? ` (${data.paused_reason})` : ""));
   row("Imported since", data.import_since ? new Date(String(data.import_since)).toLocaleString() : "-");
-  const forwarding = data.forwarding as { address?: string | null; forwarded?: number; last_forwarded_at?: string | null; confirmation?: { code: string; url: string | null } | null; probe?: { sent_at: string; returned_at: string | null } | null } | undefined;
+  const forwarding = data.forwarding as { address?: string | null; forwarded?: number; last_forwarded_at?: string | null; confirmation?: { code: string; url: string | null } | null; guide?: { name?: string; settings_url?: string | null; limits?: string[] } | null; probe?: { sent_at: string; returned_at: string | null } | null } | undefined;
   if (forwarding) {
     row("Forward to", String(forwarding.address ?? "-"));
     row("Forwarded", `${forwarding.forwarded ?? 0}${forwarding.last_forwarded_at ? `, last ${new Date(forwarding.last_forwarded_at).toLocaleString()}` : ""}`);
     if (forwarding.confirmation) row("Gmail confirmation", `${pc.bold(forwarding.confirmation.code)}${forwarding.confirmation.url ? `  ${forwarding.confirmation.url}` : ""}`);
+    const guide = forwarding.guide as { name?: string; settings_url?: string | null; limits?: string[] } | undefined;
+    if (guide) row("Provider", `${guide.name ?? "unknown"}${guide.settings_url ? `  ${guide.settings_url}` : ""}${guide.limits?.includes("paid_plan") ? "  (forwarding needs a paid plan there)" : ""}`);
     if (forwarding.probe) row("Probe", forwarding.probe.returned_at ? `came back ${new Date(forwarding.probe.returned_at).toLocaleString()}` : `sent ${new Date(forwarding.probe.sent_at).toLocaleString()}, not back yet`);
   }
   const run = data.import_run as Record<string, unknown> | null;
