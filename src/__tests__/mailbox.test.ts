@@ -4,6 +4,7 @@ import { MailboxUsageError, buildMailboxRequest } from "../commands/mailbox.js";
 
 describe("domani mailbox request planning", () => {
   it("connects gmail with a preset or a date, reads the connection, widens the import, disconnects", () => {
+    assert.deepEqual(buildMailboxRequest("providers", undefined, {}), { method: "GET", path: "/api/emails/connect/providers" });
     assert.deepEqual(buildMailboxRequest("connect", "gmail", {}), { method: "POST", path: "/api/emails/connect/gmail", body: {} });
     assert.deepEqual(buildMailboxRequest("connect", "outlook", { window: "7d" }), { method: "POST", path: "/api/emails/connect/outlook", body: { window: "7d" } });
     assert.deepEqual(buildMailboxRequest("connect", undefined, { window: "30d", workspace: "ws_1" }), { method: "POST", path: "/api/emails/connect/gmail", body: { window: "30d", workspace_id: "ws_1" } });

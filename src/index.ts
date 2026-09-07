@@ -941,6 +941,7 @@ program
   .description("Connected inboxes: connect Gmail or any inbox by forwarding, read the connection, import older mail, disconnect")
   .addHelpText("after", `
 Examples:
+  domani mailbox providers                             # which providers this server can connect
   domani mailbox connect gmail                         # the last 24 hours, then new mail as it arrives
   domani mailbox connect gmail --window 30d            # or --since 2026-06-01
   domani mailbox connect outlook --window 7d           # an Outlook inbox through Microsoft Graph

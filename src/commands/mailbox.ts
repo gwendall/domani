@@ -13,7 +13,7 @@ interface MailboxOptions {
   wait?: boolean;
 }
 
-export const MAILBOX_ACTIONS = ["connect", "connector", "import", "verify", "disconnect"] as const;
+export const MAILBOX_ACTIONS = ["providers", "connect", "connector", "import", "verify", "disconnect"] as const;
 
 export class MailboxUsageError extends Error {
   constructor(message: string, public hint?: string) {
@@ -25,6 +25,8 @@ export class MailboxUsageError extends Error {
 /** Pure: the request a mailbox action makes; tested without the network. */
 export function buildMailboxRequest(action: string | undefined, target: string | undefined, options: MailboxOptions): { path: string; method: "GET" | "POST" | "DELETE"; body?: Record<string, unknown> } {
   switch (action) {
+    case "providers":
+      return { path: "/api/emails/connect/providers", method: "GET" };
     case "connect": {
       if (target === "forwarding") {
         if (!options.address) throw new MailboxUsageError("--address is required.", "domani mailbox connect forwarding --address someone@gmail.com");
@@ -126,6 +128,14 @@ export async function mailbox(action: string | undefined, target: string | undef
     return;
   }
   if (options.json) return jsonOut(data, options.fields);
+  if (action === "providers") {
+    heading("Mailbox providers");
+    for (const provider of (data.providers as Array<Record<string, unknown>>) ?? []) {
+      row(String(provider.name), provider.configured ? `ready (${(provider.access as string[]).join(", ")}${provider.imports_history ? ", imports older mail" : ""})` : pc.yellow(`not set up: ${provider.reason}`));
+    }
+    hint("domani mailbox connect gmail | outlook | forwarding --address me@company.com");
+    return;
+  }
   if (action === "connector") return printConnector(data);
   if (action === "verify") {
     heading("Probe sent");
