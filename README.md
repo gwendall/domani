@@ -185,6 +185,12 @@ domani assistant choose <id>         Record a decision (--item-version, --decisi
 domani assistant instruct|snooze|ignore|take-over|correct <id>
 domani assistant plan <id>           Exact preview of a prepared reply; nothing is sent by the CLI
 domani assistant activity            Content-free interaction and receipt log
+domani assistant rules               The standing delegations (match, assignee, level, grants)
+domani assistant approvals           The plans waiting for you and the questions your agents asked
+domani assistant suggestions         The rules the assistant proposes from what recurred
+domani assistant metrics             The seven numbers per account and per rule (--days)
+domani assistant task <id>           The task envelope an assignee works from
+domani assistant lease|release|effects|escalate|report <id>
 domani assistant export|delete       Export or delete derived data (source mail is never touched)
 ```
 

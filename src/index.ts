@@ -478,6 +478,10 @@ Actions:
   report <id>                Report done, blocked or handed back (--outcome, --summary, --claims)
   plan <id>                  Exact preview of a prepared reply
   activity                   Content-free interaction and receipt log
+  rules                      The standing delegations (match, assignee, level, grants)
+  approvals                  The plans waiting for you and the questions your agents asked
+  suggestions                The rules the assistant proposes from what recurred
+  metrics                    The seven numbers per account and per rule (--days)
   export | delete            Export or delete derived assistant data (source mail is never touched)
 
 Examples:

@@ -3,6 +3,14 @@ import assert from "node:assert/strict";
 import { ASSISTANT_CONSENT_VERSION, AssistantUsageError, buildAssistantRequest } from "../commands/assistant.js";
 
 describe("domani assistant request planning", () => {
+  it("reads the rules, the approvals, the suggestions and the metrics with a plain GET", () => {
+    assert.deepEqual(buildAssistantRequest("rules", undefined, {}), { method: "GET", path: "/api/assistant/rules" });
+    assert.deepEqual(buildAssistantRequest("approvals", undefined, {}), { method: "GET", path: "/api/assistant/approvals" });
+    assert.deepEqual(buildAssistantRequest("suggestions", undefined, {}), { method: "GET", path: "/api/assistant/suggestions" });
+    assert.deepEqual(buildAssistantRequest("metrics", undefined, {}), { method: "GET", path: "/api/assistant/metrics" });
+    assert.deepEqual(buildAssistantRequest("metrics", undefined, { days: "7" }), { method: "GET", path: "/api/assistant/metrics?window_days=7" });
+  });
+
   it("reads settings with a plain GET", () => {
     assert.deepEqual(buildAssistantRequest("settings", undefined, {}), { method: "GET", path: "/api/assistant/settings" });
     assert.deepEqual(buildAssistantRequest(undefined, undefined, {}), { method: "GET", path: "/api/assistant/today" });

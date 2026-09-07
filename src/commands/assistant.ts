@@ -49,6 +49,7 @@ export const ASSISTANT_ACTIONS = [
   "choose", "instruct", "snooze", "ignore", "take-over", "correct", "approve", "reject",
   "plan", "activity", "export", "delete", "brief", "facts",
   "task", "lease", "release", "effects", "escalate", "report",
+  "rules", "approvals", "suggestions", "metrics",
 ] as const;
 
 function parseJson<T>(value: string | undefined, label: string, hint: string): T {
@@ -145,6 +146,16 @@ export function buildAssistantRequest(action: string | undefined, id: string | u
     case "activity": {
       const query = options.limit !== undefined ? `?limit=${parseInteger(options.limit, "--limit", 1)}` : "";
       return { method: "GET", path: `/api/assistant/activity${query}` };
+    }
+    case "rules":
+      return { method: "GET", path: "/api/assistant/rules" };
+    case "approvals":
+      return { method: "GET", path: "/api/assistant/approvals" };
+    case "suggestions":
+      return { method: "GET", path: "/api/assistant/suggestions" };
+    case "metrics": {
+      const query = options.days !== undefined ? `?window_days=${parseInteger(options.days, "--days", 1)}` : "";
+      return { method: "GET", path: `/api/assistant/metrics${query}` };
     }
     case "export":
       return { method: "GET", path: "/api/assistant/data" };
