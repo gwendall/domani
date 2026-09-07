@@ -448,6 +448,15 @@ program
   .option("--correspondent <email>", "The person you are about to answer (for brief)")
   .option("--mailbox <address>", "Restrict the correspondent brief to one mailbox (for brief)")
   .option("--yes", "Confirm deletion of derived data (for delete)")
+  .option("--plan <id>", "Action plan to approve or reject (for approve, reject)")
+  .option("--ttl <seconds>", "How long to hold the task lease, 30 to 3600 (for lease)")
+  .option("--effects <json>", "JSON array of effects to ask for (for effects)")
+  .option("--question <text>", "The question for the owner (for escalate)")
+  .option("--options <json>", "JSON array of { key, label, outcome } the owner may pick (for escalate)")
+  .option("--outcome <outcome>", "done, blocked or handed_back (for report)")
+  .option("--summary <text>", "What was done and how it ended (for report)")
+  .option("--claims <json>", "JSON array of { kind, ref } reconciled with the receipts (for report)")
+  .option("--evidence <refs>", "Comma-separated evidence refs (for escalate, report)")
   .option("--idempotency-key <key>", "Stable retry key; generated and persisted by default")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
@@ -461,6 +470,12 @@ Actions:
   item <id>                  One work item with its Decision and options
   choose | instruct | snooze | ignore | take-over | correct <id>
                              Record your decision on a work item (fenced by --item-version)
+  approve | reject <id>      Answer a waiting action plan (--plan, fenced by --item-version)
+  task <id>                  The task envelope an assignee works from: brief, facts, delegation, plans, lease
+  lease | release <id>       Hold the task while working it, or give it back
+  effects <id>               Ask for effects on a task (--effects JSON); the level and the grants decide
+  escalate <id>              Stop and ask the owner (--question, --options, --evidence)
+  report <id>                Report done, blocked or handed back (--outcome, --summary, --claims)
   plan <id>                  Exact preview of a prepared reply
   activity                   Content-free interaction and receipt log
   export | delete            Export or delete derived assistant data (source mail is never touched)
@@ -473,6 +488,10 @@ Examples:
   domani assistant item wi_789
   domani assistant choose wi_789 --item-version 3 --decision dec_1 --decision-version 1 --option opt_send
   domani assistant snooze wi_789 --item-version 3 --until 2026-09-03T09:00:00Z
+  domani assistant task wi_789
+  domani assistant effects wi_789 --effects '[{"kind":"label","mailbox_id":"mbx_123","add":["finance"]}]'
+  domani assistant escalate wi_789 --question "Pay the invoice now or on the due date?" --evidence message:msg_1
+  domani assistant report wi_789 --outcome done --summary "Filed and labelled" --claims '[{"kind":"label","ref":"plan:pl_1"}]'
   domani assistant plan plan_42
   domani assistant set --none
   domani assistant delete --yes

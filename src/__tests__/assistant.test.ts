@@ -66,3 +66,40 @@ describe("domani assistant brief and facts", () => {
     assert.deepEqual(buildAssistantRequest("facts", "wi_1", {}), { method: "GET", path: "/api/assistant/work-items/wi_1/facts" });
   });
 });
+
+describe("domani assistant tasks", () => {
+  it("reads the envelope, holds and releases the lease", () => {
+    assert.deepEqual(buildAssistantRequest("task", "wi_1", {}), { method: "GET", path: "/api/assistant/tasks/wi_1" });
+    assert.deepEqual(buildAssistantRequest("lease", "wi_1", { ttl: "120" }), { method: "POST", path: "/api/assistant/tasks/wi_1/lease", body: { ttl_seconds: 120 } });
+    assert.throws(() => buildAssistantRequest("lease", "wi_1", { ttl: "5" }), /--ttl must be an integer of at least 30/);
+    assert.deepEqual(buildAssistantRequest("release", "wi_1", {}), { method: "DELETE", path: "/api/assistant/tasks/wi_1/lease" });
+    assert.throws(() => buildAssistantRequest("task", undefined, {}), /Task ID is required/);
+  });
+
+  it("asks for effects as a JSON array with a persisted idempotency operation", () => {
+    const request = buildAssistantRequest("effects", "wi_1", { effects: '[{"kind":"label","mailbox_id":"mbx_1","add":["finance"]}]', text: "filing" });
+    assert.equal(request.method, "POST");
+    assert.equal(request.path, "/api/assistant/tasks/wi_1/effects");
+    assert.deepEqual(request.body, { effects: [{ kind: "label", mailbox_id: "mbx_1", add: ["finance"] }], note: "filing" });
+    assert.equal(request.idempotency, "assistant:effects:wi_1");
+    assert.throws(() => buildAssistantRequest("effects", "wi_1", { effects: "not json" }), /must be valid JSON/);
+    assert.throws(() => buildAssistantRequest("effects", "wi_1", { effects: "[]" }), /non-empty JSON array/);
+  });
+
+  it("escalates with a question and reports with an outcome", () => {
+    assert.deepEqual(buildAssistantRequest("escalate", "wi_1", { question: "Pay now?", options: '[{"key":"yes","label":"Yes","outcome":"pay"}]', evidence: "message:m1, plan:p1" }), {
+      method: "POST", path: "/api/assistant/tasks/wi_1/escalate", body: { question: "Pay now?", options: [{ key: "yes", label: "Yes", outcome: "pay" }], evidence_refs: ["message:m1", "plan:p1"] },
+    });
+    assert.throws(() => buildAssistantRequest("escalate", "wi_1", {}), /--question is required/);
+    assert.deepEqual(buildAssistantRequest("report", "wi_1", { outcome: "done", summary: "Filed", claims: '[{"kind":"label","ref":"plan:p1"}]' }), {
+      method: "POST", path: "/api/assistant/tasks/wi_1/report", body: { outcome: "done", summary: "Filed", claims: [{ kind: "label", ref: "plan:p1" }] },
+    });
+    assert.throws(() => buildAssistantRequest("report", "wi_1", { outcome: "maybe", summary: "x" }), /--outcome must be done, blocked or handed_back/);
+  });
+
+  it("approves or rejects a waiting plan through the fenced interaction", () => {
+    assert.deepEqual(buildAssistantRequest("approve", "wi_1", { itemVersion: "4", plan: "pl_1" }), { method: "POST", path: "/api/assistant/work-items/wi_1/interactions", body: { type: "approve", work_item_version: 4, plan_id: "pl_1" }, idempotency: "assistant:approve:wi_1" });
+    assert.deepEqual(buildAssistantRequest("reject", "wi_1", { itemVersion: "4", plan: "pl_1", text: "Not now" }).body, { type: "reject", work_item_version: 4, plan_id: "pl_1", reason: "Not now" });
+    assert.throws(() => buildAssistantRequest("approve", "wi_1", { itemVersion: "4" }), /--plan is required/);
+  });
+});

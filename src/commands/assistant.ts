@@ -16,6 +16,7 @@ export type AssistantOptions = {
   option?: string; decision?: string; decisionVersion?: string; itemVersion?: string; scope?: string;
   text?: string; until?: string; field?: string;
   limit?: string; out?: string; yes?: boolean; idempotencyKey?: string;
+  plan?: string; ttl?: string; effects?: string; question?: string; options?: string; outcome?: string; summary?: string; claims?: string; evidence?: string;
 };
 
 export type AssistantRequest = {
@@ -33,20 +34,34 @@ export class AssistantUsageError extends Error {
   }
 }
 
-const INTERACTIONS: Record<string, "choose" | "instruct" | "take_over" | "snooze" | "ignore" | "correct"> = {
+const INTERACTIONS: Record<string, "choose" | "instruct" | "take_over" | "snooze" | "ignore" | "correct" | "approve" | "reject"> = {
   choose: "choose",
   instruct: "instruct",
   "take-over": "take_over",
   snooze: "snooze",
   ignore: "ignore",
   correct: "correct",
+  approve: "approve",
+  reject: "reject",
 };
-
 export const ASSISTANT_ACTIONS = [
   "today", "settings", "set", "preview", "backfill", "retry", "item",
-  "choose", "instruct", "snooze", "ignore", "take-over", "correct",
+  "choose", "instruct", "snooze", "ignore", "take-over", "correct", "approve", "reject",
   "plan", "activity", "export", "delete", "brief", "facts",
+  "task", "lease", "release", "effects", "escalate", "report",
 ] as const;
+
+function parseJson<T>(value: string | undefined, label: string, hint: string): T {
+  if (!value) throw new AssistantUsageError(`${label} is required`, hint);
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    throw new AssistantUsageError(`${label} must be valid JSON`, hint);
+  }
+}
+function parseList(value: string | undefined): string[] {
+  return (value || "").split(",").map((part) => part.trim()).filter(Boolean);
+}
 
 function parseMailboxes(value: string | undefined): string[] {
   return (value || "").split(",").map((part) => part.trim()).filter(Boolean);
@@ -136,12 +151,54 @@ export function buildAssistantRequest(action: string | undefined, id: string | u
     case "delete":
       if (!options.yes) throw new AssistantUsageError("Deleting derived assistant data requires --yes", "This removes analyses, Decisions, plans, receipts, imports, and settings. Source mail is never touched.");
       return { method: "DELETE", path: "/api/assistant/data" };
+    // Tasks (TL-04): the assignee's side, usually run with a token bound to the agent.
+    case "task":
+      if (!id) throw new AssistantUsageError("Task ID is required", "Usage: domani assistant task <work item id>");
+      return { method: "GET", path: `/api/assistant/tasks/${encodeURIComponent(id)}` };
+    case "lease": {
+      if (!id) throw new AssistantUsageError("Task ID is required", "Usage: domani assistant lease <id> [--ttl <seconds>]");
+      const body: Record<string, unknown> = {};
+      if (options.ttl !== undefined) body.ttl_seconds = parseInteger(options.ttl, "--ttl", 30);
+      return { method: "POST", path: `/api/assistant/tasks/${encodeURIComponent(id)}/lease`, body };
+    }
+    case "release":
+      if (!id) throw new AssistantUsageError("Task ID is required", "Usage: domani assistant release <id>");
+      return { method: "DELETE", path: `/api/assistant/tasks/${encodeURIComponent(id)}/lease` };
+    case "effects": {
+      if (!id) throw new AssistantUsageError("Task ID is required", "Usage: domani assistant effects <id> --effects '<json array>'");
+      const effects = parseJson<unknown>(options.effects, "--effects", "A JSON array of effects, for example: --effects '[{\"kind\":\"label\",\"mailbox_id\":\"mbx_1\",\"add\":[\"finance\"]}]'");
+      if (!Array.isArray(effects) || !effects.length) throw new AssistantUsageError("--effects must be a non-empty JSON array", "Kinds: reply, forward, label, snooze, resolve, note, request");
+      const body: Record<string, unknown> = { effects };
+      if (options.text) body.note = options.text;
+      return { method: "POST", path: `/api/assistant/tasks/${encodeURIComponent(id)}/effects`, body, idempotency: `assistant:effects:${id}` };
+    }
+    case "escalate": {
+      if (!id) throw new AssistantUsageError("Task ID is required", "Usage: domani assistant escalate <id> --question '<text>' [--options '<json>'] [--evidence <refs>]");
+      if (!options.question) throw new AssistantUsageError("--question is required", "What the owner must decide, with the evidence in --evidence");
+      const body: Record<string, unknown> = { question: options.question };
+      if (options.options) body.options = parseJson<unknown>(options.options, "--options", "A JSON array of { key, label, outcome }");
+      const evidence = parseList(options.evidence);
+      if (evidence.length) body.evidence_refs = evidence;
+      return { method: "POST", path: `/api/assistant/tasks/${encodeURIComponent(id)}/escalate`, body };
+    }
+    case "report": {
+      if (!id) throw new AssistantUsageError("Task ID is required", "Usage: domani assistant report <id> --outcome done|blocked|handed_back --summary '<text>' [--claims '<json>'] [--evidence <refs>]");
+      if (!options.outcome || !["done", "blocked", "handed_back"].includes(options.outcome)) throw new AssistantUsageError("--outcome must be done, blocked or handed_back");
+      if (!options.summary) throw new AssistantUsageError("--summary is required", "What was done and how it ended, in a few lines");
+      const body: Record<string, unknown> = { outcome: options.outcome, summary: options.summary };
+      if (options.claims) body.claims = parseJson<unknown>(options.claims, "--claims", "A JSON array of { kind, ref } the platform reconciles with its receipts");
+      const evidence = parseList(options.evidence);
+      if (evidence.length) body.evidence_refs = evidence;
+      return { method: "POST", path: `/api/assistant/tasks/${encodeURIComponent(id)}/report`, body };
+    }
     case "choose":
     case "instruct":
     case "snooze":
     case "ignore":
     case "take-over":
-    case "correct": {
+    case "correct":
+    case "approve":
+    case "reject": {
       if (!id) throw new AssistantUsageError("Work item ID is required", `Usage: domani assistant ${resolved} <id> --item-version <work_item_version>`);
       if (options.itemVersion === undefined) throw new AssistantUsageError("--item-version is required", "Pass the work_item_version shown by: domani assistant item <id>");
       const type = INTERACTIONS[resolved];
@@ -170,6 +227,11 @@ export function buildAssistantRequest(action: string | undefined, id: string | u
         if (!options.field || !options.text) throw new AssistantUsageError("--field and --text are required", "Name the analysis field to correct and the correct value");
         body.field = options.field;
         body.correction = options.text;
+      }
+      if (type === "approve" || type === "reject") {
+        if (!options.plan) throw new AssistantUsageError("--plan is required", "The waiting action plan shown by: domani assistant task <id>");
+        body.plan_id = options.plan;
+        if (type === "reject" && options.text) body.reason = options.text;
       }
       return { method: "POST", path: `/api/assistant/work-items/${encodeURIComponent(id)}/interactions`, body, idempotency: `assistant:${type}:${id}` };
     }
