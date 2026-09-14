@@ -47,7 +47,7 @@ const INTERACTIONS: Record<string, "choose" | "instruct" | "take_over" | "snooze
 export const ASSISTANT_ACTIONS = [
   "today", "settings", "set", "preview", "backfill", "retry", "item",
   "choose", "instruct", "snooze", "ignore", "take-over", "correct", "approve", "reject",
-  "plan", "activity", "export", "delete", "brief", "facts",
+  "plan", "activity", "export", "delete", "brief", "facts", "sender",
   "task", "lease", "release", "effects", "escalate", "report",
   "rules", "approvals", "suggestions", "metrics",
 ] as const;
@@ -140,6 +140,9 @@ export function buildAssistantRequest(action: string | undefined, id: string | u
     case "facts":
       if (!id) throw new AssistantUsageError("Work item ID is required", "Usage: domani assistant facts <id>");
       return { method: "GET", path: `/api/assistant/work-items/${encodeURIComponent(id)}/facts` };
+    case "sender":
+      if (!id) throw new AssistantUsageError("Work item ID is required", "Usage: domani assistant sender <id>");
+      return { method: "GET", path: `/api/assistant/work-items/${encodeURIComponent(id)}/sender` };
     case "plan":
       if (!id) throw new AssistantUsageError("Action plan ID is required", "Usage: domani assistant plan <id>");
       return { method: "GET", path: `/api/assistant/action-plans/${encodeURIComponent(id)}` };
@@ -341,6 +344,38 @@ function showBrief(data: Record<string, unknown>, options: AssistantOptions): vo
   if (data.related && (data.related as unknown[]).length) row("Also", `${(data.related as unknown[]).length} other item(s) from this person`);
 }
 
+interface SenderCard {
+  sender?: { address: string; name: string | null; kind: string; domain: string | null; shared_domain: boolean } | null;
+  organisation?: { name: string | null; legal_name: string | null; pitch: string | null; registered_at: string | null; mail: { provider: string | null; spf: boolean | null; dmarc: string }; fresh: boolean } | null;
+  participants?: Array<{ address: string; name: string | null; roles: string[]; messages: number; same_organisation: boolean }>;
+  relationship?: {
+    received: number; received_capped: boolean; first_received_at: string | null; last_received_at: string | null; open_matters: number;
+    matters: Array<{ id: string; title: string; status: string; last_seen_at: string }>;
+    organisation: { other_senders: string[]; matters: Array<{ id: string; title: string; status: string; last_seen_at: string }> } | null;
+  };
+}
+
+function showSender(data: Record<string, unknown>, options: AssistantOptions): void {
+  if (options.json) return jsonOut(data, options.fields);
+  const card = data as SenderCard;
+  blank(); heading(card.sender ? `${card.sender.name ? `${card.sender.name} ` : ""}<${card.sender.address}>` : "Sender");
+  if (card.organisation) {
+    row("Organisation", `${card.organisation.name || card.sender?.domain || ""}${card.organisation.legal_name && card.organisation.legal_name !== card.organisation.name ? ` (${card.organisation.legal_name})` : ""}${card.organisation.fresh ? "" : pc.dim(" (profile ageing)")}`);
+    if (card.organisation.pitch) row("About", card.organisation.pitch);
+    if (card.organisation.registered_at) row("Domain since", card.organisation.registered_at.slice(0, 10));
+    row("Mail", `${card.organisation.mail.provider || "unknown provider"} · spf ${card.organisation.mail.spf === null ? "?" : card.organisation.mail.spf ? "yes" : "no"} · dmarc ${card.organisation.mail.dmarc}`);
+  } else if (card.sender?.shared_domain) row("Organisation", pc.dim(`${card.sender.domain} is a shared mail domain`));
+  else if (card.sender?.domain) row("Organisation", pc.dim(`${card.sender.domain} not analysed yet`));
+  const relationship = card.relationship;
+  if (relationship) {
+    const span = relationship.first_received_at && relationship.last_received_at ? ` between ${relationship.first_received_at.slice(0, 10)} and ${relationship.last_received_at.slice(0, 10)}` : "";
+    row("Received", relationship.received ? `${relationship.received_capped ? "50+" : relationship.received} message(s)${span}` : "nothing before this");
+    for (const matter of relationship.matters.slice(0, 5)) row(matter.last_seen_at.slice(0, 10), `${matter.title} ${pc.dim(`(${matter.status}, ${matter.id})`)}`);
+    if (relationship.organisation?.matters.length) row("Colleagues", `${relationship.organisation.other_senders.join(", ")}: ${relationship.organisation.matters.slice(0, 3).map((matter) => matter.title).join(" / ")}`);
+  }
+  for (const person of card.participants || []) row(person.roles.join("+"), `${person.name ? `${person.name} ` : ""}<${person.address}>${person.messages > 1 ? pc.dim(` ×${person.messages}`) : ""}${person.same_organisation ? "" : pc.dim(" (outside)")}`);
+}
+
 function showItem(data: Record<string, unknown>, options: AssistantOptions): void {
   if (options.json) return jsonOut(data, options.fields);
   const item = (data.work_item || data) as WorkItem;
@@ -445,6 +480,7 @@ export async function assistant(action: string | undefined, id: string | undefin
     case "item": return showItem(data, options);
     case "brief": return showBrief(data, options);
     case "facts": return jsonOut(data, options.fields);
+    case "sender": return showSender(data, options);
     case "plan": return showPlan(data, options);
     case "activity": return showActivity(data, options);
     case "export": {

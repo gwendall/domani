@@ -72,6 +72,8 @@ describe("domani assistant brief and facts", () => {
     assert.deepEqual(buildAssistantRequest("brief", undefined, { correspondent: "ada@example.com", mailbox: "hi@myapp.dev" }), { method: "GET", path: "/api/assistant/brief?correspondent=ada%40example.com&mailbox=hi%40myapp.dev" });
     assert.throws(() => buildAssistantRequest("brief", undefined, {}), (error: unknown) => error instanceof AssistantUsageError && /correspondent/.test(error.message));
     assert.deepEqual(buildAssistantRequest("facts", "wi_1", {}), { method: "GET", path: "/api/assistant/work-items/wi_1/facts" });
+    assert.deepEqual(buildAssistantRequest("sender", "wi_1", {}), { method: "GET", path: "/api/assistant/work-items/wi_1/sender" });
+    assert.throws(() => buildAssistantRequest("sender", undefined, {}), (error: unknown) => error instanceof AssistantUsageError && /Work item ID/.test(error.message));
   });
 });
 

@@ -471,6 +471,8 @@ Actions:
   choose | instruct | snooze | ignore | take-over | correct <id>
                              Record your decision on a work item (fenced by --item-version)
   approve | reject <id>      Answer a waiting action plan (--plan, fenced by --item-version)
+  brief <id>                 The situation brief of a work item (or --correspondent for a person)
+  facts | sender <id>        What was established, or who is behind the matter (organisation, people, history)
   task <id>                  The task envelope an assignee works from: brief, facts, delegation, plans, lease
   lease | release <id>       Hold the task while working it, or give it back
   effects <id>               Ask for effects on a task (--effects JSON); the level and the grants decide
