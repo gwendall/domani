@@ -448,6 +448,9 @@ program
   .option("--correspondent <email>", "The person you are about to answer (for brief)")
   .option("--mailbox <address>", "Restrict the correspondent brief to one mailbox (for brief)")
   .option("--category <kind>", "Only one kind of matter: invoice, meeting_request, newsletter... (for today)")
+  .option("--tag <name>", "Only the matters carrying this tag (for today)")
+  .option("--add <tags>", "Tags to put on the matter, comma separated (for tag)")
+  .option("--remove <tags>", "Tags to take off the matter, comma separated (for tag)")
   .option("--yes", "Confirm deletion of derived data (for delete)")
   .option("--plan <id>", "Action plan to approve or reject (for approve, reject)")
   .option("--ttl <seconds>", "How long to hold the task lease, 30 to 3600 (for lease)")
@@ -463,7 +466,7 @@ program
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
   .addHelpText("after", `
 Actions:
-  today                      Now, Needs you, Waiting, Upcoming, Handled (--category keeps one kind)
+  today                      Now, Needs you, Waiting, Upcoming, Handled (--category keeps one kind, --tag one tag)
   settings                   Opt-in state, consent, and mailbox scope
   set                        Change settings (--enable, --shadow, --pause, --mailboxes, --none, --days)
   preview                    Record consent and start a background history import
@@ -472,6 +475,7 @@ Actions:
   choose | instruct | snooze | ignore | take-over | correct <id>
                              Record your decision on a work item (fenced by --item-version)
   approve | reject <id>      Answer a waiting action plan (--plan, fenced by --item-version)
+  tag <id>                   Put tags on a matter or take them off (--add, --remove; a tag confirmed once is applied on its own next time)
   brief <id>                 The situation brief of a work item (or --correspondent for a person)
   facts | sender <id>        What was established, or who is behind the matter (organisation, people, history)
   task <id>                  The task envelope an assignee works from: brief, facts, delegation, plans, lease
@@ -495,6 +499,8 @@ Examples:
   domani assistant item wi_789
   domani assistant choose wi_789 --item-version 3 --decision dec_1 --decision-version 1 --option opt_send
   domani assistant snooze wi_789 --item-version 3 --until 2026-09-03T09:00:00Z
+  domani assistant tag wi_789 --item-version 3 --add lumenworks
+  domani assistant today --tag lumenworks
   domani assistant task wi_789
   domani assistant effects wi_789 --effects '[{"kind":"label","mailbox_id":"mbx_123","add":["finance"]}]'
   domani assistant escalate wi_789 --question "Pay the invoice now or on the due date?" --evidence message:msg_1

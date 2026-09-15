@@ -15,6 +15,16 @@ describe("domani assistant request planning", () => {
     assert.deepEqual(buildAssistantRequest("settings", undefined, {}), { method: "GET", path: "/api/assistant/settings" });
     assert.deepEqual(buildAssistantRequest(undefined, undefined, {}), { method: "GET", path: "/api/assistant/today" });
     assert.deepEqual(buildAssistantRequest("today", undefined, { category: " Invoice " }), { method: "GET", path: "/api/assistant/today?category=invoice" });
+    assert.deepEqual(buildAssistantRequest("today", undefined, { tag: " LumenWorks " }), { method: "GET", path: "/api/assistant/today?tag=lumenworks" });
+  });
+
+  it("tags a matter with --add and --remove lists", () => {
+    const request = buildAssistantRequest("tag", "wi_1", { itemVersion: "3", add: "lumenworks, q4", remove: "draft" });
+    assert.equal(request.method, "POST");
+    assert.equal(request.path, "/api/assistant/work-items/wi_1/interactions");
+    assert.deepEqual(request.body, { type: "tag", work_item_version: 3, add: ["lumenworks", "q4"], remove: ["draft"] });
+    assert.equal(request.idempotency, "assistant:tag:wi_1");
+    assert.throws(() => buildAssistantRequest("tag", "wi_1", { itemVersion: "3" }), /--add or --remove is required/);
   });
 
   it("maps --mailboxes to a mailbox_ids array and --none to an empty scope", () => {

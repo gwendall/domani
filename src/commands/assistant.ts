@@ -10,6 +10,7 @@ export type AssistantOptions = {
   correspondent?: string;
   mailbox?: string;
   category?: string;
+  tag?: string; add?: string; remove?: string;
   json?: boolean; fields?: string;
   enable?: boolean; disable?: boolean; shadow?: boolean; pause?: boolean; resume?: boolean;
   mailboxes?: string; none?: boolean; days?: string; attachmentVision?: string;
@@ -35,7 +36,7 @@ export class AssistantUsageError extends Error {
   }
 }
 
-const INTERACTIONS: Record<string, "choose" | "instruct" | "take_over" | "snooze" | "ignore" | "correct" | "approve" | "reject"> = {
+const INTERACTIONS: Record<string, "choose" | "instruct" | "take_over" | "snooze" | "ignore" | "correct" | "approve" | "reject" | "tag"> = {
   choose: "choose",
   instruct: "instruct",
   "take-over": "take_over",
@@ -44,10 +45,11 @@ const INTERACTIONS: Record<string, "choose" | "instruct" | "take_over" | "snooze
   correct: "correct",
   approve: "approve",
   reject: "reject",
+  tag: "tag",
 };
 export const ASSISTANT_ACTIONS = [
   "today", "settings", "set", "preview", "backfill", "retry", "item",
-  "choose", "instruct", "snooze", "ignore", "take-over", "correct", "approve", "reject",
+  "choose", "instruct", "snooze", "ignore", "take-over", "correct", "approve", "reject", "tag",
   "plan", "activity", "export", "delete", "brief", "facts", "sender",
   "task", "lease", "release", "effects", "escalate", "report",
   "rules", "approvals", "suggestions", "metrics",
@@ -79,8 +81,13 @@ function parseInteger(value: string | undefined, label: string, min: number): nu
 export function buildAssistantRequest(action: string | undefined, id: string | undefined, options: AssistantOptions): AssistantRequest {
   const resolved = action || "today";
   switch (resolved) {
-    case "today":
-      return { method: "GET", path: options.category ? `/api/assistant/today?category=${encodeURIComponent(options.category.trim().toLowerCase())}` : "/api/assistant/today" };
+    case "today": {
+      const query = new URLSearchParams();
+      if (options.category) query.set("category", options.category.trim().toLowerCase());
+      if (options.tag) query.set("tag", options.tag.trim().toLowerCase());
+      const search = query.toString();
+      return { method: "GET", path: search ? `/api/assistant/today?${search}` : "/api/assistant/today" };
+    }
     case "settings":
       return { method: "GET", path: "/api/assistant/settings" };
     case "set": {
@@ -213,7 +220,8 @@ export function buildAssistantRequest(action: string | undefined, id: string | u
     case "take-over":
     case "correct":
     case "approve":
-    case "reject": {
+    case "reject":
+    case "tag": {
       if (!id) throw new AssistantUsageError("Work item ID is required", `Usage: domani assistant ${resolved} <id> --item-version <work_item_version>`);
       if (options.itemVersion === undefined) throw new AssistantUsageError("--item-version is required", "Pass the work_item_version shown by: domani assistant item <id>");
       const type = INTERACTIONS[resolved];
@@ -242,6 +250,13 @@ export function buildAssistantRequest(action: string | undefined, id: string | u
         if (!options.field || !options.text) throw new AssistantUsageError("--field and --text are required", "Name the analysis field to correct and the correct value");
         body.field = options.field;
         body.correction = options.text;
+      }
+      if (type === "tag") {
+        const add = parseList(options.add);
+        const remove = parseList(options.remove);
+        if (!add.length && !remove.length) throw new AssistantUsageError("--add or --remove is required", "Example: domani assistant tag <id> --item-version 3 --add lumenworks --remove draft");
+        if (add.length) body.add = add;
+        if (remove.length) body.remove = remove;
       }
       if (type === "approve" || type === "reject") {
         if (!options.plan) throw new AssistantUsageError("--plan is required", "The waiting action plan shown by: domani assistant task <id>");
@@ -274,6 +289,7 @@ type WorkItem = {
   title?: string;
   summary?: string;
   category?: string | null;
+  tags?: string[];
   mailbox?: { id?: string; address?: string; name?: string | null };
   source?: { type?: string; conversation_id?: string | null; event_id?: string; revision?: number };
   attention?: { level?: string; reason?: string; confidence?: string; deadline?: string | null };
@@ -287,7 +303,8 @@ type WorkItem = {
 function itemLine(item: WorkItem): string[] {
   const who = item.sender?.name || item.sender?.address?.split("@")[0] || item.mailbox?.name || item.mailbox?.address || "";
   const count = item.recurrence?.count && item.recurrence.count > 1 ? pc.dim(`x${item.recurrence.count}`) : "";
-  return [pc.dim(item.id), who, item.category ? item.category.replace(/_/g, " ") : "", `${(item.title || item.summary || "").slice(0, 60)} ${count}`.trim(), item.ask ? item.ask.slice(0, 50) : item.attention?.deadline || ""];
+  const kind = [item.category ? item.category.replace(/_/g, " ") : "", ...(item.tags ?? []).map((tag) => `#${tag}`)].filter(Boolean).join(" ");
+  return [pc.dim(item.id), who, kind, `${(item.title || item.summary || "").slice(0, 60)} ${count}`.trim(), item.ask ? item.ask.slice(0, 50) : item.attention?.deadline || ""];
 }
 
 function showToday(data: Record<string, WorkItem[] | unknown>, options: AssistantOptions): void {
@@ -304,9 +321,11 @@ function showToday(data: Record<string, WorkItem[] | unknown>, options: Assistan
     table(["ID", "Who", "Kind", "Summary", "Deadline"], items.map(itemLine));
     blank();
   }
-  if (!shown) console.log(pc.dim(options.category ? `  Nothing of the kind ${options.category} right now.` : "  Nothing needs you right now."));
+  if (!shown) console.log(pc.dim(options.tag ? `  Nothing tagged ${options.tag} right now.` : options.category ? `  Nothing of the kind ${options.category} right now.` : "  Nothing needs you right now."));
   const kinds = data.categories && typeof data.categories === "object" ? Object.entries(data.categories as Record<string, number>).sort((a, b) => b[1] - a[1]) : [];
   if (kinds.length > 1) console.log(pc.dim(`  Kinds: ${kinds.map(([kind, count]) => `${kind} ${count}`).join(", ")} (narrow with --category)`));
+  const tags = data.tags && typeof data.tags === "object" ? Object.entries(data.tags as Record<string, number>).sort((a, b) => b[1] - a[1]) : [];
+  if (tags.length) console.log(pc.dim(`  Tags: ${tags.map(([tag, count]) => `${tag} ${count}`).join(", ")} (narrow with --tag)`));
   const asOf = typeof data.as_of === "string" ? data.as_of : undefined;
   if (asOf) console.log(pc.dim(`  As of ${asOf}`));
   blank();
