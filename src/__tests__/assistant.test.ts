@@ -14,6 +14,7 @@ describe("domani assistant request planning", () => {
   it("reads settings with a plain GET", () => {
     assert.deepEqual(buildAssistantRequest("settings", undefined, {}), { method: "GET", path: "/api/assistant/settings" });
     assert.deepEqual(buildAssistantRequest(undefined, undefined, {}), { method: "GET", path: "/api/assistant/today" });
+    assert.deepEqual(buildAssistantRequest("today", undefined, { category: " Invoice " }), { method: "GET", path: "/api/assistant/today?category=invoice" });
   });
 
   it("maps --mailboxes to a mailbox_ids array and --none to an empty scope", () => {

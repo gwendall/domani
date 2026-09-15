@@ -9,6 +9,7 @@ export const ASSISTANT_CONSENT_VERSION = "mailzero-personal-ai.v1";
 export type AssistantOptions = {
   correspondent?: string;
   mailbox?: string;
+  category?: string;
   json?: boolean; fields?: string;
   enable?: boolean; disable?: boolean; shadow?: boolean; pause?: boolean; resume?: boolean;
   mailboxes?: string; none?: boolean; days?: string; attachmentVision?: string;
@@ -79,7 +80,7 @@ export function buildAssistantRequest(action: string | undefined, id: string | u
   const resolved = action || "today";
   switch (resolved) {
     case "today":
-      return { method: "GET", path: "/api/assistant/today" };
+      return { method: "GET", path: options.category ? `/api/assistant/today?category=${encodeURIComponent(options.category.trim().toLowerCase())}` : "/api/assistant/today" };
     case "settings":
       return { method: "GET", path: "/api/assistant/settings" };
     case "set": {
@@ -272,6 +273,7 @@ type WorkItem = {
   status?: string;
   title?: string;
   summary?: string;
+  category?: string | null;
   mailbox?: { id?: string; address?: string; name?: string | null };
   source?: { type?: string; conversation_id?: string | null; event_id?: string; revision?: number };
   attention?: { level?: string; reason?: string; confidence?: string; deadline?: string | null };
@@ -285,7 +287,7 @@ type WorkItem = {
 function itemLine(item: WorkItem): string[] {
   const who = item.sender?.name || item.sender?.address?.split("@")[0] || item.mailbox?.name || item.mailbox?.address || "";
   const count = item.recurrence?.count && item.recurrence.count > 1 ? pc.dim(`x${item.recurrence.count}`) : "";
-  return [pc.dim(item.id), who, `${(item.title || item.summary || "").slice(0, 60)} ${count}`.trim(), item.ask ? item.ask.slice(0, 50) : item.attention?.deadline || ""];
+  return [pc.dim(item.id), who, item.category ? item.category.replace(/_/g, " ") : "", `${(item.title || item.summary || "").slice(0, 60)} ${count}`.trim(), item.ask ? item.ask.slice(0, 50) : item.attention?.deadline || ""];
 }
 
 function showToday(data: Record<string, WorkItem[] | unknown>, options: AssistantOptions): void {
@@ -299,10 +301,12 @@ function showToday(data: Record<string, WorkItem[] | unknown>, options: Assistan
     if (!items.length) continue;
     shown += items.length;
     console.log(`  ${pc.bold(label)} ${pc.dim(`(${items.length})`)}`);
-    table(["ID", "Who", "Summary", "Deadline"], items.map(itemLine));
+    table(["ID", "Who", "Kind", "Summary", "Deadline"], items.map(itemLine));
     blank();
   }
-  if (!shown) console.log(pc.dim("  Nothing needs you right now."));
+  if (!shown) console.log(pc.dim(options.category ? `  Nothing of the kind ${options.category} right now.` : "  Nothing needs you right now."));
+  const kinds = data.categories && typeof data.categories === "object" ? Object.entries(data.categories as Record<string, number>).sort((a, b) => b[1] - a[1]) : [];
+  if (kinds.length > 1) console.log(pc.dim(`  Kinds: ${kinds.map(([kind, count]) => `${kind} ${count}`).join(", ")} (narrow with --category)`));
   const asOf = typeof data.as_of === "string" ? data.as_of : undefined;
   if (asOf) console.log(pc.dim(`  As of ${asOf}`));
   blank();

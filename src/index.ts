@@ -447,6 +447,7 @@ program
   .option("--out <file>", "Write the export to a file instead of stdout (for export)")
   .option("--correspondent <email>", "The person you are about to answer (for brief)")
   .option("--mailbox <address>", "Restrict the correspondent brief to one mailbox (for brief)")
+  .option("--category <kind>", "Only one kind of matter: invoice, meeting_request, newsletter... (for today)")
   .option("--yes", "Confirm deletion of derived data (for delete)")
   .option("--plan <id>", "Action plan to approve or reject (for approve, reject)")
   .option("--ttl <seconds>", "How long to hold the task lease, 30 to 3600 (for lease)")
@@ -462,7 +463,7 @@ program
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
   .addHelpText("after", `
 Actions:
-  today                      Now, Needs you, Waiting, Upcoming, Handled
+  today                      Now, Needs you, Waiting, Upcoming, Handled (--category keeps one kind)
   settings                   Opt-in state, consent, and mailbox scope
   set                        Change settings (--enable, --shadow, --pause, --mailboxes, --none, --days)
   preview                    Record consent and start a background history import
