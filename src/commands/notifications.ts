@@ -7,6 +7,7 @@ export async function notifications(
     read?: boolean;
     unread?: boolean;
     limit?: string;
+    cursor?: string;
     json?: boolean;
     fields?: string;
   }
@@ -17,19 +18,27 @@ export async function notifications(
 
 // -- List notifications ──────────────────────────────
 
+/** Query string for `notifications`: the unread filter, the page size and the page cursor. */
+export function notificationsQuery(options: { unread?: boolean; limit?: string; cursor?: string }): string {
+  const params = new URLSearchParams();
+  if (options.unread) params.set("unread", "true");
+  if (options.limit) params.set("limit", options.limit);
+  if (options.cursor) params.set("cursor", options.cursor);
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
 async function listNotifications(options: {
   unread?: boolean;
   limit?: string;
+  cursor?: string;
   json?: boolean;
   fields?: string;
 }): Promise<void> {
   const s = createSpinner(!options.json);
   s.start("Loading notifications");
 
-  const params = new URLSearchParams();
-  if (options.unread) params.set("unread", "true");
-  if (options.limit) params.set("limit", options.limit);
-  const qs = params.toString() ? `?${params.toString()}` : "";
+  const qs = notificationsQuery(options);
 
   const res = await apiRequest(`/api/notifications${qs}`);
   const data = await res.json();
@@ -69,6 +78,11 @@ async function listNotifications(options: {
   );
   table(["", "Type", "Title", "Body", "Date"], rows, [3, 16, 28, 42, 14]);
   blank();
+
+  if (data.next_cursor) {
+    console.log(`  ${pc.dim(`More: --cursor ${data.next_cursor}`)}`);
+    blank();
+  }
 
   if (unreadCount > 0) {
     console.log(`  ${pc.dim("Mark all as read:")} ${pc.cyan("domani notifications --read")}`);

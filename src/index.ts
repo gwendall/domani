@@ -402,6 +402,8 @@ program
   .option("--upstream <url>", "HTTP or HTTPS upstream origin")
   .option("--domain <domain>", "Filter routes by owned domain")
   .option("--status <status>", "Filter: active, expired, deleted, suspended, all")
+  .option("--limit <n>", "Routes per page for list (default 50, max 100)")
+  .option("--cursor <cursor>", "Page cursor from the previous list (printed as More: --cursor ...)")
   .option("--expires-in <seconds>", "Lease duration in seconds (60-86400)")
   .option("--host-header <mode>", "Host header mode: public or upstream")
   .option("--upstream-verification <mode>", "Verification mode: none or signed_headers")
@@ -415,6 +417,7 @@ program
 Examples:
   domani route create --hostname preview.example.com --upstream http://bore.pub:45255
   domani route list --domain example.com --status active
+  domani route list --cursor <next_cursor>         # next page
   domani route refresh route_123 --expires-in 3600
   domani route rotate-verification route_123
   domani route rotate-headers route_123 --upstream-authorization-env SPRITES_AUTH
@@ -585,6 +588,7 @@ Examples:
   domani email escalate hi@myapp.dev --message-id MSG --reason "refund over $500"
   domani email remind hi@myapp.dev --message-id MSG --at 2026-09-03T09:00:00Z --note "chase the invoice"
   domani email contacts --q acme                    # address book, auto-fed by traffic
+  domani email contacts --order created             # full sync with --cursor: every contact once
   domani email tone hi@myapp.dev --set "lowercase, friendly, sign as Ada"
   domani email webhook hi@myapp.dev --url https://example.com/hook --authorization-env CURSOR_AUTH
   domani email webhook-test hi@myapp.dev              # one signed test; live inbound retries up to 3x
@@ -600,8 +604,8 @@ Examples:
   .option("--domain <domain>", "Domain name")
   .option("--slug <slug>", "Mailbox slug (local part before @)")
   .option("--query <text>", "Search text (for search; or pass it as the argument; --mode hybrid|semantic|keyword picks the ranking)")
-  .option("--since <iso>", "Only mail or threads after this time (for search, threads)")
-  .option("--until <iso>", "Only mail before this time (for search)")
+  .option("--since <iso>", "Only mail or threads after this time (for search, threads, inbox)")
+  .option("--until <iso>", "Only mail before this time (for search, inbox)")
   .option("--label <labels>", "Comma-separated labels, any of (for search, threads, inbox)")
   .option("--add <labels>", "Labels to add (for label)")
   .option("--remove <labels>", "Labels to remove (for label; --set <labels> replaces every label)")
@@ -622,6 +626,7 @@ Examples:
   .option("--at <iso>", "Reminder time, ISO 8601 (for remind)")
   .option("--clear", "Clear the escalation flag, reminder, or tone notes")
   .option("--q <query>", "Filter contacts by address or name")
+  .option("--order <order>", "Contacts order: recent (default) or created (stable, for a full sync with --cursor)")
   .option("--name <name>", "Contact display name (for contact-add)")
   .option("--notes <text>", "Contact notes (for contact-add)")
   .option("--set <text>", "Tone notes to set on the mailbox (for tone)")
@@ -854,12 +859,15 @@ program
   .description("List marketplace deals or view deal details")
   .option("--role <role>", "Filter by role: buyer or seller")
   .option("--status <status>", "Filter by status: active, completed, or all")
+  .option("--limit <n>", "Deals per page (default 50, max 100)")
+  .option("--cursor <cursor>", "Page cursor from the previous list (printed as More: --cursor ...)")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
   .addHelpText("after", `
 Examples:
   domani deals                                  # list all your deals
   domani deals --role seller --status active     # your active sales
+  domani deals --cursor <next_cursor>            # next page
   domani deals deal_abc123                       # view specific deal
   domani deals --json                            # machine-readable output`)
   .action(deals);
@@ -892,8 +900,13 @@ program
   .option("--read", "Mark all notifications as read")
   .option("--unread", "Show only unread notifications")
   .option("--limit <n>", "Limit results")
+  .option("--cursor <cursor>", "Page cursor from the previous list (printed as More: --cursor ...)")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani notifications --unread                  # what is new
+  domani notifications --cursor <next_cursor>    # next page`)
   .action(notifications);
 
 // ── Email shortcuts ───────────────────────────────────

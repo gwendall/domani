@@ -6,7 +6,7 @@ import { blank, createSpinner, fail, heading, jsonOut, row, S } from "../ui.js";
 type Options = {
   json?: boolean; fields?: string; hostname?: string; upstream?: string; domain?: string; status?: string;
   expiresIn?: string; hostHeader?: "public" | "upstream"; upstreamVerification?: "none" | "signed_headers";
-  idempotencyKey?: string;
+  idempotencyKey?: string; limit?: string; cursor?: string;
   upstreamAuthorizationEnv?: string; upstreamApiKeyEnv?: string; clearUpstreamHeaders?: boolean;
 };
 
@@ -41,17 +41,27 @@ function showRoute(data: any, options: Options): void {
   blank();
 }
 
+/** Query string for `route list`: the filters, the page size and the page cursor. */
+export function httpRoutesQuery(options: { domain?: string; hostname?: string; status?: string; limit?: string; cursor?: string }): string {
+  const query = new URLSearchParams();
+  if (options.domain) query.set("domain", options.domain);
+  if (options.hostname) query.set("hostname", options.hostname);
+  if (options.status) query.set("status", options.status);
+  if (options.limit) query.set("limit", options.limit);
+  if (options.cursor) query.set("cursor", options.cursor);
+  const qs = query.toString();
+  return qs ? `?${qs}` : "";
+}
+
 export async function httpRoute(action: string | undefined, id: string | undefined, options: Options): Promise<void> {
   if (!action || action === "list") {
-    const query = new URLSearchParams();
-    if (options.domain) query.set("domain", options.domain);
-    if (options.hostname) query.set("hostname", options.hostname);
-    if (options.status) query.set("status", options.status);
-    const data = await responseOrFail(await apiRequest(`/api/http-routes${query.size ? `?${query}` : ""}`), options);
+    const data = await responseOrFail(await apiRequest(`/api/http-routes${httpRoutesQuery(options)}`), options);
     if (options.json) return jsonOut(data, options.fields);
     blank(); heading("HTTP Routes");
     for (const route of data.http_routes) console.log(`  ${pc.dim(route.id)}  ${route.hostname}  ${route.status}  ${route.upstream}`);
-    blank(); return;
+    blank();
+    if (data.next_cursor) { console.log(`  ${pc.dim(`More: --cursor ${data.next_cursor}`)}`); blank(); }
+    return;
   }
   if (action === "create") {
     if (!options.upstream) fail("--upstream is required", { code: "validation_error", json: options.json });

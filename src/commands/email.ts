@@ -102,6 +102,7 @@ interface EmailOptions {
   at?: string;
   clear?: boolean;
   q?: string;
+  order?: string;
   name?: string;
   notes?: string;
   set?: string;
@@ -407,7 +408,8 @@ async function threadsCli(options: EmailOptions): Promise<void> {
   if (options.limit) params.set("limit", options.limit);
   if (options.cursor) params.set("cursor", options.cursor);
   if (options.label) params.set("label", options.label);
-  const response = await apiRequest(`/api/emails/${encodeURIComponent(address)}/threads${params.size ? `?${params}` : ""}`);
+  const qs = params.toString();
+  const response = await apiRequest(`/api/emails/${encodeURIComponent(address)}/threads${qs ? `?${qs}` : ""}`);
   const data = await response.json();
   if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
   if (options.json) return jsonOut(data, options.fields);
@@ -1034,12 +1036,23 @@ async function remindCli(options: EmailOptions): Promise<void> {
   );
 }
 
-async function contactsCli(options: EmailOptions): Promise<void> {
+/**
+ * Query string for `email contacts`. --order created pages by creation time, a
+ * key that never changes, so a full sync sees every contact exactly once; the
+ * default (recent) order can skip a contact that gets mail during the scan.
+ */
+export function contactsQuery(options: Pick<EmailOptions, "q" | "limit" | "cursor" | "order">): string {
   const params = new URLSearchParams();
   if (options.q) params.set("q", options.q);
   if (options.limit) params.set("limit", options.limit);
+  if (options.order) params.set("order", options.order);
   if (options.cursor) params.set("cursor", options.cursor);
-  const res = await apiRequest(`/api/contacts${params.size ? `?${params}` : ""}`);
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+async function contactsCli(options: EmailOptions): Promise<void> {
+  const res = await apiRequest(`/api/contacts${contactsQuery(options)}`);
   const data = await res.json();
   if (!res.ok) {
     fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
@@ -1135,18 +1148,28 @@ async function toneCli(options: EmailOptions): Promise<void> {
 
 // ── List messages ─────────────────────────────────
 
-async function messagesCli(options: EmailOptions): Promise<void> {
-  const domain = await requireDomain(options);
-  if (!options.slug) {
-    fail("Slug required", { hint: "Usage: domani email inbox hello@example.com [--direction in|out] [--limit 20]", code: "validation_error", json: options.json, fields: options.fields });
-  }
-
+/** Query string for `email inbox`: filters, the time window, and the page cursor. */
+export function inboxQuery(options: Pick<EmailOptions, "direction" | "folder" | "view" | "limit" | "cursor" | "since" | "until" | "label">): string {
   const params = new URLSearchParams();
   if (options.direction) params.set("direction", options.direction);
   if (options.folder) params.set("folder", options.folder);
   if (options.view) params.set("view", options.view);
   if (options.limit) params.set("limit", options.limit);
-  const qs = params.toString() ? `?${params}` : "";
+  if (options.since) params.set("since", options.since);
+  if (options.until) params.set("until", options.until);
+  if (options.label) params.set("label", options.label);
+  if (options.cursor) params.set("cursor", options.cursor);
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+async function messagesCli(options: EmailOptions): Promise<void> {
+  const domain = await requireDomain(options);
+  if (!options.slug) {
+    fail("Slug required", { hint: "Usage: domani email inbox hello@example.com [--direction in|out] [--limit 20] [--cursor <next_cursor>]", code: "validation_error", json: options.json, fields: options.fields });
+  }
+
+  const qs = inboxQuery(options);
 
   const s = createSpinner(!options.json);
   s.start(`Loading messages for ${options.slug}@${domain}`);
@@ -1192,9 +1215,7 @@ async function messagesCli(options: EmailOptions): Promise<void> {
     console.log(`  ${dir}  ${contact.padEnd(30)} ${titlePart}  ${date}`);
   }
 
-  if (data.next_cursor) {
-    console.log(`  ${pc.dim("… more available, use --limit to paginate")}`);
-  }
+  if (data.next_cursor) console.log(pc.dim(`More: --cursor ${data.next_cursor}`));
 }
 
 async function foldersCli(options: EmailOptions): Promise<void> {

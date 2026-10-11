@@ -7,6 +7,8 @@ export async function deals(
   options: {
     role?: string;
     status?: string;
+    limit?: string;
+    cursor?: string;
     json?: boolean;
     fields?: string;
   }
@@ -17,19 +19,29 @@ export async function deals(
 
 // -- List deals ──────────────────────────────────────
 
+/** Query string for `deals`: the role and status filters, the page size and the page cursor. */
+export function dealsQuery(options: { role?: string; status?: string; limit?: string; cursor?: string }): string {
+  const params = new URLSearchParams();
+  if (options.role) params.set("role", options.role);
+  if (options.status) params.set("status", options.status);
+  if (options.limit) params.set("limit", options.limit);
+  if (options.cursor) params.set("cursor", options.cursor);
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
 async function dealList(options: {
   role?: string;
   status?: string;
+  limit?: string;
+  cursor?: string;
   json?: boolean;
   fields?: string;
 }): Promise<void> {
   const s = createSpinner(!options.json);
   s.start("Loading deals");
 
-  const params = new URLSearchParams();
-  if (options.role) params.set("role", options.role);
-  if (options.status) params.set("status", options.status);
-  const qs = params.toString() ? `?${params.toString()}` : "";
+  const qs = dealsQuery(options);
 
   const res = await apiRequest(`/api/deals${qs}`);
   const data = await res.json();
@@ -76,6 +88,11 @@ async function dealList(options: {
   );
   table(["Domain", "Price", "Status", "Role", "Created"], rows, [28, 12, 14, 10, 14]);
   blank();
+
+  if (data.next_cursor) {
+    console.log(`  ${pc.dim(`More: --cursor ${data.next_cursor}`)}`);
+    blank();
+  }
 }
 
 // -- Deal detail ─────────────────────────────────────

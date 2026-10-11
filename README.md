@@ -149,6 +149,7 @@ domani list                       List your domains
 domani status <domain>            Health check (DNS, SSL, email, expiry)
 domani tlds                       List all TLDs with pricing (--sort, --max-price)
 domani whois <domain>             WHOIS/RDAP lookup
+domani deals [id]                 Marketplace deals (--role, --status, --limit, --cursor) or one deal
 ```
 
 ### Email
@@ -157,8 +158,9 @@ domani whois <domain>             WHOIS/RDAP lookup
 domani email list                    List all mailboxes
 domani email create user@domain      Create a mailbox
 domani email delete user@domain      Delete a mailbox
-domani email inbox user@domain       List messages (--folder, --view, --direction)
+domani email inbox user@domain       List messages (--folder, --view, --direction, --since, --until, --cursor)
 domani email folders user@domain     List folder and view counts
+domani email contacts                Address book (--q, --cursor; --order created for a full sync)
 domani email archive user@domain --message-ids m1,m2
 domani email trash user@domain --message-ids m1
 domani email restore user@domain --message-ids m1
@@ -206,6 +208,7 @@ domani dns <domain> snapshot       Export DNS to file
 domani dns <domain> restore        Restore DNS from snapshot
 domani nameservers <domain>        Get or set nameservers (--reset for defaults)
 domani connect <domain> <target>   Auto-configure DNS for a provider
+domani route [action] [id]         Short-lived HTTP routes (list: --domain, --status, --limit, --cursor)
 ```
 
 **Supported providers**: Vercel, Netlify, Cloudflare Pages, GitHub Pages, Fly.io, Railway, Render, Google Workspace, Fastmail, Proton Mail.
@@ -229,6 +232,7 @@ domani logout                      Clear saved credentials
 domani me                          Show account info
 domani billing                     Add or update payment method (opens browser)
 domani invoices                    List payment invoices
+domani notifications               List notifications (--unread, --limit, --cursor; --read marks all read)
 domani token                       Print your API key
 domani tokens [list|create|revoke] Manage API tokens (scoped, expiring)
 domani webhooks [action]           Manage webhook endpoints (auth headers via --authorization-env/--api-key-env)
@@ -251,6 +255,8 @@ Built for AI agents and scripts, not just humans.
 ```bash
 domani list | jq '.domains[].domain'
 ```
+
+**Paging**: list commands print `More: --cursor <next_cursor>` when another page exists (in JSON mode, read `next_cursor`); pass it back with `--cursor` to get the next page.
 
 **Structured errors**: In JSON mode, errors include `code`, `hint`, and `fix_command` for auto-recovery:
 
