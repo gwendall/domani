@@ -4,12 +4,15 @@ import pc from "picocolors";
 import { S, fmt, blank, hintCommand, createSpinner, jsonOut, fail, isTTY } from "../ui.js";
 import { requireValidTlds } from "../validate.js";
 import { dropResult, heldByRegistry, registryLabel } from "./search.js";
+import { perYear } from "../per-year.js";
 
 interface SuggestedDomain {
   domain: string;
   available: boolean;
   price: number;
   currency: string;
+  /** What each year after the first costs, in USD, when known */
+  renewal_price?: number;
   reason?: string;
   /** Set when the registry holds the name back (premium or reserved): not available */
   registry_status?: "premium" | "reserved";
@@ -153,7 +156,7 @@ export async function suggest(
             // Print available first
             for (const item of available) {
               const reasonHint = item.reason ? `  ${pc.dim(item.reason)}` : "";
-              console.log(`  ${S.success} ${fmt.domain(item.domain).padEnd(37)} ${fmt.price(item.price)}${pc.dim("/yr")}${reasonHint}`);
+              console.log(`  ${S.success} ${fmt.domain(item.domain).padEnd(37)} ${pc.green(perYear(item.price, item.renewal_price))}${reasonHint}`);
             }
             // Then taken
             for (const item of taken) {

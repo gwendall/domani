@@ -4,6 +4,7 @@ import pc from "picocolors";
 import { S, fmt, blank, hintCommand, createSpinner, createProgressTable, jsonOut, skipConfirm, dryRunOut, fail, isTTY } from "../ui.js";
 import { requireValidDomain, requireValidDomains } from "../validate.js";
 import { acceptNewPrice, parseMaxPrice, priceToAccept, roundToCent } from "../max-price.js";
+import { perYear, renewalDiffers } from "../per-year.js";
 
 interface BuyOptions {
   yes?: boolean;
@@ -11,7 +12,7 @@ interface BuyOptions {
   json?: boolean;
   fields?: string;
   maxPrice?: string;
-  preChecked?: { price: number; currency: string; marketplace?: boolean };
+  preChecked?: { price: number; currency: string; renewal_price?: number; marketplace?: boolean };
 }
 
 async function nextSteps(domain: string): Promise<void> {
@@ -108,7 +109,7 @@ async function buySingle(domain: string, options: BuyOptions): Promise<void> {
   requireValidDomain(domain, options);
   const requested = parseMaxPrice(options.maxPrice, options);
 
-  let searchData: { available: boolean; price: number; currency: string; error?: string; hint?: string };
+  let searchData: { available: boolean; price: number; currency: string; renewal_price?: number; error?: string; hint?: string };
 
   if (options.preChecked) {
     searchData = { available: true, ...options.preChecked };
@@ -125,7 +126,7 @@ async function buySingle(domain: string, options: BuyOptions): Promise<void> {
       s.stop(`${S.error} ${fmt.domain(domain)} is not available`);
       fail(`${domain} is not available`, { code: "not_available", json: options.json, fields: options.fields });
     }
-    s.stop(`${S.success} ${fmt.domain(domain)} ${S.dot} available ${S.dot} ${fmt.price(searchData.price)}/yr`);
+    s.stop(`${S.success} ${fmt.domain(domain)} ${S.dot} available ${S.dot} ${pc.green(perYear(searchData.price, searchData.renewal_price))}`);
   }
 
   // The buy charges nothing above the price shown, unless --max-price says otherwise.
@@ -136,6 +137,7 @@ async function buySingle(domain: string, options: BuyOptions): Promise<void> {
       domain,
       available: true,
       price: searchData.price,
+      ...(searchData.renewal_price !== undefined ? { renewal_price: searchData.renewal_price } : {}),
       currency: searchData.currency || "USD",
       max_price: ceiling,
     }, options.json, options.fields);
@@ -143,7 +145,7 @@ async function buySingle(domain: string, options: BuyOptions): Promise<void> {
 
   if (!skipConfirm(options)) {
     const ok = await clackConfirm({
-      message: `Purchase ${pc.bold(domain)} for ${fmt.price(searchData.price)}/yr?`,
+      message: `Purchase ${pc.bold(domain)} for ${pc.green(perYear(searchData.price, searchData.renewal_price))}?`,
     });
     if (!ok || typeof ok === "symbol") {
       console.log(`  ${pc.dim("Cancelled.")}`);
@@ -191,9 +193,9 @@ async function buyBulk(domains: string[], options: BuyOptions): Promise<void> {
       try {
         const res = await apiRequest(`/api/domains/search?q=${encodeURIComponent(d)}`);
         const data = await res.json();
-        return { domain: d, available: res.ok && data.available, price: data.price as number | undefined };
+        return { domain: d, available: res.ok && data.available, price: data.price as number | undefined, renewal_price: data.renewal_price as number | undefined };
       } catch {
-        return { domain: d, available: false, price: undefined };
+        return { domain: d, available: false, price: undefined, renewal_price: undefined };
       }
     })
   );
@@ -207,6 +209,9 @@ async function buyBulk(domains: string[], options: BuyOptions): Promise<void> {
   }
 
   const total = available.reduce((sum, c) => sum + (c.price || 0), 0);
+  // What the same names cost each year after the first: a name whose renewal is unknown counts its first-year price.
+  const renewalTotal = available.reduce((sum, c) => sum + (c.renewal_price ?? c.price ?? 0), 0);
+  const thenRenews = renewalDiffers(total, renewalTotal) ? `, then ${fmt.price(renewalTotal.toFixed(2))}/yr` : "";
   s.stop(`${S.success} ${available.length}/${domains.length} available ${S.dot} ${fmt.price(total.toFixed(2))} total`);
 
   if (unavailable.length > 0) {
@@ -220,7 +225,7 @@ async function buyBulk(domains: string[], options: BuyOptions): Promise<void> {
 
   if (options.dryRun) {
     return dryRunOut("buy_bulk", {
-      domains: available.map((c) => ({ domain: c.domain, price: c.price })),
+      domains: available.map((c) => ({ domain: c.domain, price: c.price, ...(c.renewal_price !== undefined ? { renewal_price: c.renewal_price } : {}) })),
       unavailable: unavailable.map((c) => c.domain),
       total_price: parseFloat(total.toFixed(2)),
       max_price: ceiling,
@@ -230,7 +235,7 @@ async function buyBulk(domains: string[], options: BuyOptions): Promise<void> {
   // 2. Confirm
   if (!skipConfirm(options)) {
     const ok = await clackConfirm({
-      message: `Purchase ${pc.bold(String(available.length))} domain${available.length > 1 ? "s" : ""} for ${fmt.price(total.toFixed(2))}?`,
+      message: `Purchase ${pc.bold(String(available.length))} domain${available.length > 1 ? "s" : ""} for ${fmt.price(total.toFixed(2))}${thenRenews}?`,
     });
     if (!ok || typeof ok === "symbol") {
       console.log(`  ${pc.dim("Cancelled.")}`);
@@ -247,7 +252,7 @@ async function buyBulk(domains: string[], options: BuyOptions): Promise<void> {
     const progress = createProgressTable(
       ["Domain", "Price"],
       available.map((c) => ({
-        cells: [fmt.domain(c.domain), c.price ? `${fmt.price(c.price.toFixed(2))}/yr` : ""],
+        cells: [fmt.domain(c.domain), c.price ? pc.green(perYear(c.price, c.renewal_price)) : ""],
         status: "pending" as const,
       })),
       [30, 12],
