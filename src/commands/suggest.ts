@@ -3,6 +3,7 @@ import { text, isCancel } from "@clack/prompts";
 import pc from "picocolors";
 import { S, fmt, blank, hintCommand, createSpinner, jsonOut, fail, isTTY } from "../ui.js";
 import { requireValidTlds } from "../validate.js";
+import { dropResult, heldByRegistry, registryLabel } from "./search.js";
 
 interface SuggestedDomain {
   domain: string;
@@ -10,6 +11,10 @@ interface SuggestedDomain {
   price: number;
   currency: string;
   reason?: string;
+  /** Set when the registry holds the name back (premium or reserved): not available */
+  registry_status?: "premium" | "reserved";
+  /** Premium only: the registry's first-year price in USD, when known */
+  registry_price?: number;
 }
 
 export async function suggest(
@@ -126,7 +131,10 @@ export async function suggest(
         try {
           const data = JSON.parse(line.slice(6));
           if (currentEvent === "result") {
-            received++;
+            // A corrected name comes again (registry premium or reserved, RDAP
+            // false positive): the latest answer replaces the earlier one.
+            const seen = dropResult(available, data.domain) !== -1 || dropResult(taken, data.domain) !== -1;
+            if (!seen) received++;
             if (data.available) {
               available.push(data);
             } else {
@@ -149,7 +157,7 @@ export async function suggest(
             }
             // Then taken
             for (const item of taken) {
-              console.log(`  ${S.error} ${pc.dim(item.domain.padEnd(38))} ${pc.red("taken")}`);
+              console.log(`  ${S.error} ${pc.dim(item.domain.padEnd(38))} ${heldByRegistry(item) ? pc.yellow(registryLabel(item)) : pc.red("taken")}`);
             }
 
             console.log(`  ${pc.dim("─".repeat(50))}`);

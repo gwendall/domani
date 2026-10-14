@@ -20,6 +20,62 @@ interface SearchResult {
   error?: boolean;
   /** Domain is listed for sale (marketplace or external) */
   for_sale?: ForSaleInfo;
+  /** Where the suffix sits against the DNS root zone: tld, second_level or alt_root (#651) */
+  tld_kind?: "tld" | "second_level" | "alt_root";
+  /** Set when the registry holds the name back although RDAP calls it unregistered */
+  registry_status?: "premium" | "reserved";
+  /** Premium only: the registry's first-year price in USD, when known */
+  registry_price?: number;
+  /** Why the server does not offer the name (alt_root and registry_status results) */
+  reason?: string;
+}
+
+/**
+ * A name under a TLD outside the IANA root zone (#651). The server does not
+ * check it and says why in `reason`: it does not resolve in public DNS, so it
+ * is never shown as available or taken.
+ */
+export function notInPublicDns(r: Pick<SearchResult, "tld_kind">): boolean {
+  return r.tld_kind === "alt_root";
+}
+
+/** The plain sentence for such a name: the server's reason, or the same fact when an older server sent none. */
+export function notInPublicDnsReason(r: Pick<SearchResult, "domain" | "reason">): string {
+  return r.reason || `${r.domain} does not resolve in public DNS: its TLD is not in the DNS root zone (IANA). Domani does not offer it.`;
+}
+
+/**
+ * A name RDAP calls unregistered that the registry holds back: a premium it
+ * prices itself, or a reserved name. The server marks it not available and
+ * says why in `reason`, so it is never shown as available or taken.
+ */
+export function heldByRegistry(r: Pick<SearchResult, "registry_status">): boolean {
+  return r.registry_status === "premium" || r.registry_status === "reserved";
+}
+
+/** The short status for such a name: "premium $1250.20" (the price when known) or "reserved". */
+export function registryLabel(r: Pick<SearchResult, "registry_status" | "registry_price">): string {
+  if (r.registry_status === "reserved") return "reserved";
+  return r.registry_price !== undefined ? `premium $${r.registry_price.toFixed(2)}` : "premium";
+}
+
+/** The plain sentence for such a name: the server's reason, or the same fact when an older server sent none. */
+export function registryReason(r: Pick<SearchResult, "domain" | "registry_status" | "registry_price" | "reason">): string {
+  if (r.reason) return r.reason;
+  if (r.registry_status === "reserved") return `${r.domain} is reserved by the registry and cannot be registered.`;
+  const priced = r.registry_price !== undefined ? `: the registry prices it at $${r.registry_price.toFixed(2)}` : " priced by the registry";
+  return `${r.domain} is a premium name${priced}. Premium names cannot be bought at the standard price.`;
+}
+
+/**
+ * Removes the earlier result for this domain and returns where it was (-1 if
+ * none). The server sends a name again when it corrects it (a registry
+ * premium or reserved name, an RDAP false positive): the latest answer wins.
+ */
+export function dropResult(list: Array<{ domain: string }>, domain: string): number {
+  const at = list.findIndex((r) => r.domain === domain);
+  if (at !== -1) list.splice(at, 1);
+  return at;
 }
 
 const BATCH_SIZE = 10;
@@ -160,7 +216,7 @@ async function liveSelectSearch(
     for (let i = 0; i < displayItems.length; i++) {
       const item = displayItems[i];
       if (showTaken) {
-        lines.push(`${pc.dim("│")}  ${pc.dim("✕")} ${pc.dim(item.domain.padEnd(maxLen))}  ${pc.dim("taken")}`);
+        lines.push(`${pc.dim("│")}  ${pc.dim("✕")} ${pc.dim(item.domain.padEnd(maxLen))}  ${pc.dim(heldByRegistry(item) ? registryLabel(item) : "taken")}`);
       } else {
         const sel = i === selectedIndex;
         const dot = sel ? pc.green("●") : pc.dim("○");
@@ -261,8 +317,18 @@ async function liveSelectSearch(
             process.stdout.write("\x1B[?25h"); // show cursor (hidden for the live list)
             fail(data.message || data.error || "Search failed", { code: data.code || "error" });
           }
-          if (currentEvent === "result") lastChecked = data.domain;
-          if (currentEvent === "result" && (data.available || data.for_sale || showAll)) {
+          if (currentEvent === "result") {
+            lastChecked = data.domain;
+            dropResult(takenItems, data.domain);
+            const was = dropResult(items, data.domain);
+            if (was !== -1) {
+              if (was < selectedIndex) selectedIndex--;
+              selectedIndex = Math.min(selectedIndex, maxIdx());
+              render();
+            }
+          }
+          // A name the registry holds back cannot be bought: it is never selectable.
+          if (currentEvent === "result" && (data.available || data.for_sale || showAll) && !heldByRegistry(data)) {
             if (batchIndex === 0) {
               const insertAt = items.findIndex((i) => i.price > data.price);
               if (insertAt === -1) {
@@ -411,7 +477,17 @@ export async function search(
       return;
     }
 
-    if (data.available) {
+    if (notInPublicDns(data)) {
+      s.stop(`${S.warning} ${fmt.domain(data.domain)} ${S.dot} ${pc.yellow("not in public DNS")}`);
+      blank();
+      console.log(`  ${notInPublicDnsReason(data)}`);
+      blank();
+    } else if (heldByRegistry(data)) {
+      s.stop(`${S.warning} ${fmt.domain(data.domain)} ${S.dot} ${pc.yellow(registryLabel(data))}`);
+      blank();
+      console.log(`  ${registryReason(data)}`);
+      blank();
+    } else if (data.available) {
       s.stop(`${S.success} ${fmt.domain(data.domain)} ${S.dot} available ${S.dot} ${fmt.price(data.price)}/yr`);
       if (isTTY && !options.json) {
         const { buy } = await import("./buy.js");
@@ -478,7 +554,9 @@ export async function search(
         if (line.startsWith("event: ")) {
           evt = line.slice(7);
         } else if (line.startsWith("data: ") && evt === "result") {
-          allResults.push(JSON.parse(line.slice(6)));
+          const result: SearchResult = JSON.parse(line.slice(6));
+          dropResult(allResults, result.domain);
+          allResults.push(result);
         }
       }
     }
@@ -487,17 +565,29 @@ export async function search(
 
     const col = Math.max(...mergedTlds.map((t) => `${currentName}.${t}`.length)) + 2;
     const available = allResults.filter((r) => r.available);
-    const taken = allResults.filter((r) => !r.available && !r.error);
+    const notPublic = allResults.filter(notInPublicDns);
+    const held = allResults.filter(heldByRegistry);
+    const taken = allResults.filter((r) => !r.available && !r.error && !notInPublicDns(r) && !heldByRegistry(r));
 
     const listed = allResults.filter((r) => !r.available && r.for_sale);
-    for (const r of [...available, ...listed, ...taken.filter((r) => !r.for_sale)]) {
-      if (r.available) {
+    for (const r of [...available, ...listed, ...held, ...taken.filter((r) => !r.for_sale), ...notPublic]) {
+      if (notInPublicDns(r)) {
+        console.log(`  ${pc.yellow("!")} ${pc.dim(r.domain.padEnd(col))} ${pc.yellow("not in public DNS")}`);
+      } else if (heldByRegistry(r)) {
+        console.log(`  ${pc.yellow("!")} ${pc.dim(r.domain.padEnd(col))} ${pc.yellow(registryLabel(r))}`);
+      } else if (r.available) {
         console.log(`  ${pc.green("✓")} ${pc.bold(pc.white(r.domain.padEnd(col)))} ${pc.green(fmt.price(r.price) + "/yr")}`);
       } else if (r.for_sale) {
         console.log(`  ${pc.cyan("$")} ${pc.bold(pc.white(r.domain.padEnd(col)))} ${pc.cyan(fmt.price(r.for_sale.price))} ${pc.dim("(for sale)")}`);
       } else {
         console.log(`  ${pc.dim("✗")} ${pc.dim(r.domain.padEnd(col))} ${pc.dim("taken")}`);
       }
+    }
+
+    if (notPublic.length > 0 || held.length > 0) {
+      blank();
+      for (const r of held) console.log(`  ${pc.dim(registryReason(r))}`);
+      for (const r of notPublic) console.log(`  ${pc.dim(notInPublicDnsReason(r))}`);
     }
 
     if (available.length === 0) {
@@ -618,6 +708,8 @@ export async function search(
   const results: SearchResult[] = [];
   let headerPrinted = false;
   let received = 0;
+  let finished = false;
+  const checked = new Set<string>();
   const showAll = options.all ?? false;
 
   function printHeader() {
@@ -629,7 +721,13 @@ export async function search(
 
   function printResult(r: SearchResult) {
     printHeader();
-    if (r.available) {
+    if (notInPublicDns(r)) {
+      console.log(`  ${S.warning} ${pc.dim(r.domain.padEnd(38))} ${pc.yellow("not in public DNS")}`);
+      console.log(`    ${pc.dim(notInPublicDnsReason(r))}`);
+    } else if (heldByRegistry(r)) {
+      console.log(`  ${S.warning} ${pc.dim(r.domain.padEnd(38))} ${pc.yellow(registryLabel(r))}`);
+      console.log(`    ${pc.dim(registryReason(r))}`);
+    } else if (r.available) {
       console.log(`  ${S.success} ${fmt.domain(r.domain).padEnd(37)} ${fmt.price(r.price)}${pc.dim("/yr")}`);
     } else if (r.for_sale) {
       console.log(`  ${S.info} ${fmt.domain(r.domain).padEnd(37)} ${pc.cyan(fmt.price(r.for_sale.price))} ${pc.dim("(for sale)")}`);
@@ -664,19 +762,26 @@ export async function search(
           s.stop("Search failed");
           fail(data.message || data.error || "Search failed", { code: data.code || "error", json: options.json, fields: options.fields });
         } else if (currentEvent === "result") {
-          received++;
-          if (data.available || data.for_sale || showAll) {
-            if (!options.json) printResult(data);
-            results.push(data);
-          } else if (!options.json) {
-            updateProgress();
+          // A corrected name comes again (a registry premium or reserved name, an
+          // RDAP false positive), so rows print once the answers are final.
+          checked.add(data.domain);
+          received = checked.size;
+          const was = dropResult(results, data.domain);
+          // A name the caller asked for under a TLD outside the root zone, or one
+          // the registry holds back, is always shown, with the reason, so it
+          // never vanishes silently (#651).
+          if (data.available || data.for_sale || showAll || notInPublicDns(data) || heldByRegistry(data)) {
+            results.splice(was === -1 ? results.length : was, 0, data);
           }
+          if (!options.json) updateProgress();
         } else if (currentEvent === "done") {
           if (options.json) {
             results.sort((a, b) => a.price - b.price);
             jsonOut({ name, results, total: data.total, available: data.available }, options.fields);
             return;
           }
+          finished = true;
+          for (const r of results) printResult(r);
           if (headerPrinted) {
             console.log(`  ${pc.dim("─".repeat(50))}`);
           }
@@ -693,5 +798,7 @@ export async function search(
     }
   }
 
+  // The stream ended without its summary: still show what was checked.
+  if (!finished && !options.json) for (const r of results) printResult(r);
   blank();
 }

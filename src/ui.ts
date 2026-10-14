@@ -239,6 +239,8 @@ interface FailOptions {
   fixUrl?: string;
   json?: boolean;
   fields?: string;
+  /** Extra fields of the JSON output, e.g. the price a refusal asks to accept. */
+  data?: Record<string, unknown>;
 }
 
 const FIX_COMMANDS: Record<string, string> = {
@@ -264,7 +266,7 @@ export function fail(msg: string | undefined, opts?: FailOptions): never {
   const fixCommand = opts?.fixCommand || FIX_COMMANDS[code];
 
   if (opts?.json) {
-    const out: Record<string, unknown> = { error: resolvedMsg, code };
+    const out: Record<string, unknown> = { error: resolvedMsg, code, ...opts.data };
     if (opts.hint) out.hint = opts.hint;
     if (fixCommand) out.fix_command = fixCommand;
     if (opts.fixUrl) out.fix_url = opts.fixUrl;

@@ -3,6 +3,45 @@ import { confirm as clackConfirm, select, isCancel, text, type TextOptions } fro
 import pc from "picocolors";
 import { S, fmt, blank, hintCommand, createSpinner, createProgressTable, jsonOut, skipConfirm, dryRunOut, fail, isTTY } from "../ui.js";
 import { requireValidDomain, requireValidDomains } from "../validate.js";
+import { acceptPriceHint, parseMaxPrice, priceToAccept, roundToCent } from "../max-price.js";
+
+interface BuyOptions {
+  yes?: boolean;
+  dryRun?: boolean;
+  json?: boolean;
+  fields?: string;
+  maxPrice?: string;
+  preChecked?: { price: number; currency: string; marketplace?: boolean };
+}
+
+/**
+ * The price went above the ceiling and nothing was charged: ask the user to accept the new
+ * total, or fail with the flag that accepts it when nobody can be asked.
+ */
+async function acceptNewPrice(
+  price: number,
+  ceiling: number,
+  refusal: { error?: string },
+  options: BuyOptions,
+): Promise<number | undefined> {
+  if (skipConfirm(options)) {
+    fail(refusal.error ?? `The price is now $${price.toFixed(2)}, above $${ceiling.toFixed(2)}. Nothing was charged.`, {
+      code: "price_above_max",
+      hint: acceptPriceHint(price),
+      data: { price },
+      json: options.json,
+      fields: options.fields,
+    });
+  }
+  const ok = await clackConfirm({
+    message: `The price changed: ${fmt.price(price.toFixed(2))} instead of ${fmt.price(ceiling.toFixed(2))}. Nothing was charged. Buy for ${fmt.price(price.toFixed(2))}?`,
+  });
+  if (!ok || typeof ok === "symbol") {
+    console.log(`  ${pc.dim("Cancelled.")}`);
+    return undefined;
+  }
+  return price;
+}
 
 async function nextSteps(domain: string): Promise<void> {
   const action = await select({
@@ -31,63 +70,29 @@ async function nextSteps(domain: string): Promise<void> {
 
 /* ── Single domain buy (original flow) ─────────────────────── */
 
-async function buySingle(
-  domain: string,
-  options: { yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string; preChecked?: { price: number; currency: string; marketplace?: boolean } }
-): Promise<void> {
-  requireValidDomain(domain, options);
+type PurchaseOutcome =
+  | { registered: Record<string, unknown> }
+  | { refused: { price: number; error?: string } };
 
-  let searchData: { available: boolean; price: number; currency: string; error?: string; hint?: string };
-
-  if (options.preChecked) {
-    searchData = { available: true, ...options.preChecked };
-  } else {
-    const s = createSpinner(!options.json);
-    s.start(`Checking ${fmt.domain(domain)}`);
-    const searchRes = await apiRequest(`/api/domains/search?q=${encodeURIComponent(domain)}`);
-    searchData = await searchRes.json();
-    if (!searchRes.ok) {
-      s.stop("Search failed");
-      fail(searchData.error, { hint: searchData.hint, status: searchRes.status, json: options.json, fields: options.fields });
-    }
-    if (!searchData.available) {
-      s.stop(`${S.error} ${fmt.domain(domain)} is not available`);
-      fail(`${domain} is not available`, { code: "not_available", json: options.json, fields: options.fields });
-    }
-    s.stop(`${S.success} ${fmt.domain(domain)} ${S.dot} available ${S.dot} ${fmt.price(searchData.price)}/yr`);
-  }
-
-  if (options.dryRun) {
-    return dryRunOut("buy", {
-      domain,
-      available: true,
-      price: searchData.price,
-      currency: searchData.currency || "USD",
-    }, options.json, options.fields);
-  }
-
-  if (!skipConfirm(options)) {
-    const ok = await clackConfirm({
-      message: `Purchase ${pc.bold(domain)} for ${fmt.price(searchData.price)}/yr?`,
-    });
-    if (!ok || typeof ok === "symbol") {
-      console.log(`  ${pc.dim("Cancelled.")}`);
-      return;
-    }
-  }
-
+/** One streamed purchase, charging no more than maxPrice. */
+async function purchaseOne(domain: string, maxPrice: number | undefined, options: BuyOptions): Promise<PurchaseOutcome> {
   const p = createSpinner(!options.json);
   p.start("Purchasing");
 
   const res = await apiRequest("/api/domains/buy", {
     method: "POST",
     headers: { Accept: "text/event-stream" },
-    body: JSON.stringify({ domain }),
+    body: JSON.stringify({ domain, ...(maxPrice !== undefined ? { max_price: maxPrice } : {}) }),
   });
 
   if (!res.ok || !res.body) {
-    p.stop("Purchase failed");
     const errData = await res.json().catch(() => ({}));
+    const price = priceToAccept(errData);
+    if (price !== undefined) {
+      p.stop("Price changed - nothing was charged");
+      return { refused: { price, error: errData.error } };
+    }
+    p.stop("Purchase failed");
     fail(errData.error || errData.message, { hint: errData.hint, fixUrl: errData.setup_url || errData.payment_options?.card?.setup_url, status: res.status, json: options.json, fields: options.fields });
   }
 
@@ -111,6 +116,11 @@ async function buySingle(
         else if (evt === "registering") p.message(`Registering ${fmt.domain(payload.domain)}`);
         else if (evt === "registered") data = payload;
         else if (evt === "error") {
+          const price = priceToAccept(payload);
+          if (price !== undefined) {
+            p.stop("Price changed - nothing was charged");
+            return { refused: { price, error: payload.error } };
+          }
           p.stop("Purchase failed");
           fail(payload.error, { hint: payload.hint, fixUrl: payload.setup_url, status: res.status, json: options.json, fields: options.fields });
         }
@@ -120,6 +130,64 @@ async function buySingle(
 
   const expires = data.expires ? pc.dim(` · expires ${new Date(data.expires as string).toLocaleDateString()}`) : "";
   p.stop(`${S.success} ${fmt.domain(data.domain as string)} is yours!${expires}`);
+  return { registered: data };
+}
+
+async function buySingle(domain: string, options: BuyOptions): Promise<void> {
+  requireValidDomain(domain, options);
+  const requested = parseMaxPrice(options.maxPrice, options);
+
+  let searchData: { available: boolean; price: number; currency: string; error?: string; hint?: string };
+
+  if (options.preChecked) {
+    searchData = { available: true, ...options.preChecked };
+  } else {
+    const s = createSpinner(!options.json);
+    s.start(`Checking ${fmt.domain(domain)}`);
+    const searchRes = await apiRequest(`/api/domains/search?q=${encodeURIComponent(domain)}`);
+    searchData = await searchRes.json();
+    if (!searchRes.ok) {
+      s.stop("Search failed");
+      fail(searchData.error, { hint: searchData.hint, status: searchRes.status, json: options.json, fields: options.fields });
+    }
+    if (!searchData.available) {
+      s.stop(`${S.error} ${fmt.domain(domain)} is not available`);
+      fail(`${domain} is not available`, { code: "not_available", json: options.json, fields: options.fields });
+    }
+    s.stop(`${S.success} ${fmt.domain(domain)} ${S.dot} available ${S.dot} ${fmt.price(searchData.price)}/yr`);
+  }
+
+  // The buy charges nothing above the price shown, unless --max-price says otherwise.
+  let ceiling = requested ?? (typeof searchData.price === "number" ? roundToCent(searchData.price) : undefined);
+
+  if (options.dryRun) {
+    return dryRunOut("buy", {
+      domain,
+      available: true,
+      price: searchData.price,
+      currency: searchData.currency || "USD",
+      max_price: ceiling,
+    }, options.json, options.fields);
+  }
+
+  if (!skipConfirm(options)) {
+    const ok = await clackConfirm({
+      message: `Purchase ${pc.bold(domain)} for ${fmt.price(searchData.price)}/yr?`,
+    });
+    if (!ok || typeof ok === "symbol") {
+      console.log(`  ${pc.dim("Cancelled.")}`);
+      return;
+    }
+  }
+
+  let outcome = await purchaseOne(domain, ceiling, options);
+  while ("refused" in outcome) {
+    const accepted = await acceptNewPrice(outcome.refused.price, ceiling ?? searchData.price, outcome.refused, options);
+    if (accepted === undefined) return;
+    ceiling = accepted;
+    outcome = await purchaseOne(domain, ceiling, options);
+  }
+  const data = outcome.registered;
 
   if (options.json) {
     jsonOut(data, options.fields);
@@ -138,11 +206,9 @@ async function buySingle(
 
 /* ── Bulk domain buy ───────────────────────────────────────── */
 
-async function buyBulk(
-  domains: string[],
-  options: { yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string }
-): Promise<void> {
+async function buyBulk(domains: string[], options: BuyOptions): Promise<void> {
   requireValidDomains(domains, options);
+  const requested = parseMaxPrice(options.maxPrice, options);
   const useJson = !!options.json;
 
   // 1. Check availability for all domains first
@@ -178,11 +244,15 @@ async function buyBulk(
     }
   }
 
+  // The buy charges nothing above the total shown; a name shown without a price leaves the ceiling to the server.
+  let ceiling = requested ?? (available.every((c) => typeof c.price === "number") ? roundToCent(total) : undefined);
+
   if (options.dryRun) {
     return dryRunOut("buy_bulk", {
       domains: available.map((c) => ({ domain: c.domain, price: c.price })),
       unavailable: unavailable.map((c) => c.domain),
       total_price: parseFloat(total.toFixed(2)),
+      max_price: ceiling,
     }, options.json, options.fields);
   }
 
@@ -200,38 +270,50 @@ async function buyBulk(
   // 3. Buy via bulk API
   blank();
 
-  const progressRows = available.map((c) => ({
-    cells: [fmt.domain(c.domain), c.price ? `${fmt.price(c.price.toFixed(2))}/yr` : ""],
-    status: "pending" as const,
-  }));
+  let res: Response;
+  let data;
+  for (;;) {
+    const progress = createProgressTable(
+      ["Domain", "Price"],
+      available.map((c) => ({
+        cells: [fmt.domain(c.domain), c.price ? `${fmt.price(c.price.toFixed(2))}/yr` : ""],
+        status: "pending" as const,
+      })),
+      [30, 12],
+      !useJson
+    );
+    progress.start();
 
-  const progress = createProgressTable(
-    ["Domain", "Price"],
-    progressRows,
-    [30, 12],
-    !useJson
-  );
+    res = await apiRequest("/api/domains/buy", {
+      method: "POST",
+      body: JSON.stringify({ domains: available.map((c) => c.domain), ...(ceiling !== undefined ? { max_price: ceiling } : {}) }),
+    });
+    data = await res.json();
 
-  progress.start();
-
-  const res = await apiRequest("/api/domains/buy", {
-    method: "POST",
-    body: JSON.stringify({ domains: available.map((c) => c.domain) }),
-  });
-  const data = await res.json();
-
-  // Mark results in progress table
-  const succeededDomains = new Set((data.results || []).map((r: { domain: string }) => r.domain));
-  for (let i = 0; i < available.length; i++) {
-    const d = available[i].domain.toLowerCase().trim();
-    if (succeededDomains.has(d)) {
-      progress.markDone(i, S.success);
-    } else {
-      progress.markDone(i, S.error);
+    const price = res.ok ? undefined : priceToAccept(data);
+    if (price === undefined) {
+      // Mark results in progress table
+      const succeededDomains = new Set((data.results || []).map((r: { domain: string }) => r.domain));
+      for (let i = 0; i < available.length; i++) {
+        const d = available[i].domain.toLowerCase().trim();
+        progress.markDone(i, succeededDomains.has(d) ? S.success : S.error);
+      }
+      progress.stop();
+      break;
     }
+
+    for (let i = 0; i < available.length; i++) progress.markDone(i, pc.dim("·"));
+    progress.stop();
+    blank();
+    const accepted = await acceptNewPrice(price, ceiling ?? total, data, options);
+    if (accepted === undefined) return;
+    ceiling = accepted;
+    blank();
   }
 
-  progress.stop();
+  if (!res.ok) {
+    fail(data.error, { hint: data.hint, fixUrl: data.setup_url, status: res.status, json: options.json, fields: options.fields });
+  }
 
   if (useJson) {
     jsonOut(data, options.fields);
@@ -284,10 +366,7 @@ async function buyBulk(
 
 /* ── Exported command ──────────────────────────────────────── */
 
-export async function buy(
-  domainsArg: string[],
-  options: { yes?: boolean; dryRun?: boolean; json?: boolean; fields?: string; preChecked?: { price: number; currency: string; marketplace?: boolean } }
-): Promise<void> {
+export async function buy(domainsArg: string[], options: BuyOptions): Promise<void> {
   let domains = domainsArg.filter(Boolean);
 
   if (domains.length === 0) {

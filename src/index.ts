@@ -247,7 +247,8 @@ Examples:
 
 program
   .command("tlds")
-  .description("List all TLDs with pricing")
+  .description("List the TLDs Domani sells, with pricing")
+  .option("--kind <kinds>", "Kinds to show, comma-separated: tld, second_level, alt_root (default: tld,second_level; alt_root does not resolve in public DNS)")
   .option("--max-price <price>", "Maximum registration price")
   .option("--min-price <price>", "Minimum registration price")
   .option("--sort <field>", "Sort by: price, tld, renewal (default: tld)")
@@ -286,6 +287,7 @@ Examples:
 program
   .command("buy [domains...]")
   .description("Purchase one or more domains")
+  .option("--max-price <usd>", "Ceiling for the total charge (default: the price shown)")
   .option("--yes", "Skip confirmation prompt")
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")
@@ -296,6 +298,7 @@ Examples:
   domani buy myapp.dev myapp.com myapp.ai       # buy multiple
   domani buy myapp.dev --dry-run                # preview without buying
   domani buy myapp.dev --yes                    # skip confirmation
+  domani buy myapp.dev --yes --max-price 15     # never pay more than $15
   domani buy myapp.dev --json                   # machine-readable output`)
   .action(buy);
 
@@ -308,6 +311,7 @@ program
   .option("--authorization-env <name>", "Read the webhook Authorization value from this environment variable")
   .option("--api-key-env <name>", "Read the webhook X-API-Key value from this environment variable")
   .option("--years <n>", "Registration years (1-10, default 1)")
+  .option("--max-price <usd>", "Ceiling for the domain charge (default: the listed price)")
   .option("--payment-method <method>", "card, usdc, or balance")
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")

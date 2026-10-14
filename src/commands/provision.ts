@@ -3,6 +3,7 @@ import pc from "picocolors";
 import { fmt, heading, row, blank, hint, createSpinner, jsonOut, dryRunOut, fail } from "../ui.js";
 import { requireValidDomain } from "../validate.js";
 import { resolveProvisionWebhook } from "../provision-webhook.js";
+import { acceptPriceHint, parseMaxPrice, priceToAccept } from "../max-price.js";
 
 interface ProvisionResult {
   domain: string;
@@ -21,6 +22,7 @@ export async function provision(
     name?: string;
     webhook?: string;
     years?: string;
+    maxPrice?: string;
     paymentMethod?: string;
     authorizationEnv?: string;
     apiKeyEnv?: string;
@@ -47,6 +49,8 @@ export async function provision(
   }
   Object.assign(body, webhookConfig.request);
   if (options.years) body.years = Number(options.years);
+  const maxPrice = parseMaxPrice(options.maxPrice, options);
+  if (maxPrice !== undefined) body.max_price = maxPrice;
   if (options.paymentMethod) body.payment_method = options.paymentMethod;
 
   if (options.dryRun) {
@@ -65,8 +69,13 @@ export async function provision(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = (await res.json()) as ProvisionResult & { error?: string; hint?: string };
+  const data = (await res.json()) as ProvisionResult & { error?: string; hint?: string; code?: string; price?: number };
 
+  const price = res.ok ? undefined : priceToAccept(data);
+  if (price !== undefined) {
+    s.stop("Price changed - nothing was charged");
+    fail(data.error, { code: "price_above_max", hint: acceptPriceHint(price), data: { price }, json: options.json, fields: options.fields });
+  }
   if (!res.ok) {
     s.stop("Provisioning failed");
     fail(data.error || "Provisioning failed", {
