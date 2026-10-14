@@ -356,10 +356,16 @@ program
   .command("renew [domain]")
   .description("Renew a domain")
   .option("--years <n>", "Number of years (1-10, default: 1)")
+  .option("--max-price <usd>", "Ceiling for the renewal charge (default: the price shown)")
   .option("--yes", "Skip confirmation prompt")
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani renew myapp.dev                        # renew one year at the price shown
+  domani renew myapp.dev --years 3 --dry-run    # preview the total without renewing
+  domani renew myapp.dev --yes --max-price 40   # never pay more than $40`)
   .action(renew);
 
 program

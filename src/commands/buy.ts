@@ -3,7 +3,7 @@ import { confirm as clackConfirm, select, isCancel, text, type TextOptions } fro
 import pc from "picocolors";
 import { S, fmt, blank, hintCommand, createSpinner, createProgressTable, jsonOut, skipConfirm, dryRunOut, fail, isTTY } from "../ui.js";
 import { requireValidDomain, requireValidDomains } from "../validate.js";
-import { acceptPriceHint, parseMaxPrice, priceToAccept, roundToCent } from "../max-price.js";
+import { acceptNewPrice, parseMaxPrice, priceToAccept, roundToCent } from "../max-price.js";
 
 interface BuyOptions {
   yes?: boolean;
@@ -12,35 +12,6 @@ interface BuyOptions {
   fields?: string;
   maxPrice?: string;
   preChecked?: { price: number; currency: string; marketplace?: boolean };
-}
-
-/**
- * The price went above the ceiling and nothing was charged: ask the user to accept the new
- * total, or fail with the flag that accepts it when nobody can be asked.
- */
-async function acceptNewPrice(
-  price: number,
-  ceiling: number,
-  refusal: { error?: string },
-  options: BuyOptions,
-): Promise<number | undefined> {
-  if (skipConfirm(options)) {
-    fail(refusal.error ?? `The price is now $${price.toFixed(2)}, above $${ceiling.toFixed(2)}. Nothing was charged.`, {
-      code: "price_above_max",
-      hint: acceptPriceHint(price),
-      data: { price },
-      json: options.json,
-      fields: options.fields,
-    });
-  }
-  const ok = await clackConfirm({
-    message: `The price changed: ${fmt.price(price.toFixed(2))} instead of ${fmt.price(ceiling.toFixed(2))}. Nothing was charged. Buy for ${fmt.price(price.toFixed(2))}?`,
-  });
-  if (!ok || typeof ok === "symbol") {
-    console.log(`  ${pc.dim("Cancelled.")}`);
-    return undefined;
-  }
-  return price;
 }
 
 async function nextSteps(domain: string): Promise<void> {
@@ -182,7 +153,7 @@ async function buySingle(domain: string, options: BuyOptions): Promise<void> {
 
   let outcome = await purchaseOne(domain, ceiling, options);
   while ("refused" in outcome) {
-    const accepted = await acceptNewPrice(outcome.refused.price, ceiling ?? searchData.price, outcome.refused, options);
+    const accepted = await acceptNewPrice(outcome.refused.price, ceiling ?? searchData.price, outcome.refused, "Buy", options);
     if (accepted === undefined) return;
     ceiling = accepted;
     outcome = await purchaseOne(domain, ceiling, options);
@@ -305,7 +276,7 @@ async function buyBulk(domains: string[], options: BuyOptions): Promise<void> {
     for (let i = 0; i < available.length; i++) progress.markDone(i, pc.dim("·"));
     progress.stop();
     blank();
-    const accepted = await acceptNewPrice(price, ceiling ?? total, data, options);
+    const accepted = await acceptNewPrice(price, ceiling ?? total, data, "Buy", options);
     if (accepted === undefined) return;
     ceiling = accepted;
     blank();

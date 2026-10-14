@@ -11,6 +11,7 @@ process.env.DOMANI_API_KEY = "test-placeholder-key";
 
 const { acceptPriceHint, parseMaxPrice, priceToAccept, roundToCent } = await import("../max-price.js");
 const { buy } = await import("../commands/buy.js");
+const { renew } = await import("../commands/renew.js");
 
 class Exit extends Error {
   constructor(readonly code: number | string | null | undefined) {
@@ -36,13 +37,14 @@ describe("max-price helpers", () => {
   });
 });
 
-describe("buy against a stubbed API", () => {
+describe("buy and renew against a stubbed API", () => {
   const realFetch = globalThis.fetch;
   const realLog = console.log;
   const realExit = process.exit;
   let printed: string[] = [];
-  let buyBodies: Array<Record<string, unknown>> = [];
-  let respondToBuy: () => Response = () => new Response("{}");
+  let postedBodies: Array<Record<string, unknown>> = [];
+  let respondToPost: () => Response = () => new Response("{}");
+  let renewalPrice: number | null = 51.8;
 
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -59,9 +61,12 @@ describe("buy against a stubbed API", () => {
       if (url.pathname === "/api/domains/search") {
         return json({ domain: url.searchParams.get("q"), available: true, price: 4.5, currency: "USD" });
       }
-      if (url.pathname === "/api/domains/buy") {
-        buyBodies.push(JSON.parse(String(init?.body ?? "{}")));
-        return respondToBuy();
+      if (url.pathname === "/api/domains/buy" || url.pathname === "/api/domains/a.dev/renew") {
+        postedBodies.push(JSON.parse(String(init?.body ?? "{}")));
+        return respondToPost();
+      }
+      if (url.pathname === "/api/domains/a.dev") {
+        return json({ domain: "a.dev", renewal_price: renewalPrice });
       }
       return json({});
     }) as typeof fetch;
@@ -76,10 +81,11 @@ describe("buy against a stubbed API", () => {
     fs.rmSync(configDir, { recursive: true, force: true });
   });
 
-  function reset(handler: () => Response) {
+  function reset(handler: () => Response, yearly: number | null = 51.8) {
     printed = [];
-    buyBodies = [];
-    respondToBuy = handler;
+    postedBodies = [];
+    respondToPost = handler;
+    renewalPrice = yearly;
   }
 
   const lastJson = () => JSON.parse(printed.at(-1) ?? "{}");
@@ -87,14 +93,14 @@ describe("buy against a stubbed API", () => {
   it("a bulk buy caps the charge at the total shown", async () => {
     reset(() => json({ results: [{ domain: "a.dev", success: true }, { domain: "b.dev", success: true }], summary: { succeeded: 2, failed: 0 } }));
     await buy(["a.dev", "b.dev"], { json: true });
-    assert.equal(buyBodies.length, 1);
-    assert.equal(buyBodies[0].max_price, 9);
+    assert.equal(postedBodies.length, 1);
+    assert.equal(postedBodies[0].max_price, 9);
   });
 
   it("a bulk buy refused above the ceiling fails with the price and the flag that accepts it", async () => {
     reset(() => json(refusal, 400));
     await assert.rejects(buy(["a.dev", "b.dev"], { json: true }), (err: unknown) => err instanceof Exit && err.code === 1);
-    assert.equal(buyBodies.length, 1);
+    assert.equal(postedBodies.length, 1);
     const out = lastJson();
     assert.equal(out.code, "price_above_max");
     assert.equal(out.price, 12.5);
@@ -104,7 +110,7 @@ describe("buy against a stubbed API", () => {
   it("--max-price replaces the ceiling", async () => {
     reset(() => json({ results: [{ domain: "a.dev", success: true }, { domain: "b.dev", success: true }], summary: { succeeded: 2, failed: 0 } }));
     await buy(["a.dev", "b.dev"], { json: true, maxPrice: "12.50" });
-    assert.equal(buyBodies[0].max_price, 12.5);
+    assert.equal(postedBodies[0].max_price, 12.5);
   });
 
   it("a bulk buy that fails for another reason no longer ends silently", async () => {
@@ -116,10 +122,47 @@ describe("buy against a stubbed API", () => {
   it("a single buy refused in the stream fails with the price to accept", async () => {
     reset(() => sse([["checking", { domain: "a.dev" }], ["error", refusal]]));
     await assert.rejects(buy(["a.dev"], { json: true }), (err: unknown) => err instanceof Exit && err.code === 1);
-    assert.equal(buyBodies[0].max_price, 4.5);
+    assert.equal(postedBodies[0].max_price, 4.5);
     const out = lastJson();
     assert.equal(out.code, "price_above_max");
     assert.equal(out.price, 12.5);
+  });
+
+  const renewed = { domain: "a.dev", renewed_years: 3, new_expiry: "2029-10-14T00:00:00.000Z", price: 155.4, currency: "USD" };
+
+  it("a renewal caps the charge at the yearly price times the years", async () => {
+    reset(() => json(renewed));
+    await renew("a.dev", { years: "3", json: true });
+    assert.deepEqual(postedBodies, [{ years: 3, max_price: 155.4 }]);
+  });
+
+  it("a renewal refused above the ceiling fails with the price and the flag that accepts it", async () => {
+    reset(() => json(refusal, 400));
+    await assert.rejects(renew("a.dev", { json: true }), (err: unknown) => err instanceof Exit && err.code === 1);
+    assert.equal(postedBodies.length, 1);
+    const out = lastJson();
+    assert.equal(out.code, "price_above_max");
+    assert.equal(out.price, 12.5);
+    assert.match(out.hint, /--max-price 12\.50/u);
+  });
+
+  it("--max-price replaces the renewal ceiling", async () => {
+    reset(() => json(renewed));
+    await renew("a.dev", { years: "3", json: true, maxPrice: "160" });
+    assert.equal(postedBodies[0].max_price, 160);
+  });
+
+  it("a renewal without a known price leaves the ceiling to the server", async () => {
+    reset(() => json(renewed), null);
+    await renew("a.dev", { json: true });
+    assert.deepEqual(postedBodies, [{ years: 1 }]);
+  });
+
+  it("a renewal dry run states the total and charges nothing", async () => {
+    reset(() => json(renewed));
+    await renew("a.dev", { years: "3", json: true, dryRun: true });
+    assert.equal(postedBodies.length, 0);
+    assert.deepEqual(lastJson(), { dry_run: true, action: "renew", domain: "a.dev", years: 3, price: 155.4, currency: "USD", max_price: 155.4 });
   });
 
   it("rejects a --max-price that is not a positive amount", async () => {
@@ -128,6 +171,6 @@ describe("buy against a stubbed API", () => {
     assert.equal(lastJson().code, "validation_error");
     assert.equal(parseMaxPrice(undefined, {}), undefined);
     assert.equal(parseMaxPrice("15", {}), 15);
-    assert.equal(buyBodies.length, 0);
+    assert.equal(postedBodies.length, 0);
   });
 });
