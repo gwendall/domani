@@ -22,10 +22,27 @@ export async function authCode(
     fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
   }
 
-  s.stop(`${S.success} Auth code retrieved`);
+  const requested = data.status === "requested";
+  s.stop(requested ? `${S.success} Auth code requested` : `${S.success} Auth code retrieved`);
 
   if (options.json) {
     jsonOut(data, options.fields);
+    return;
+  }
+
+  if (requested) {
+    // The registrar has no API for the code: Domani's team gets it by hand.
+    heading("Auth Code");
+    row("Domain", fmt.domain(data.domain));
+    row("Status", pc.yellow("Requested"));
+    if (data.expected_by) row("Ready by", new Date(data.expected_by).toLocaleString());
+    if (data.hint) {
+      blank();
+      console.log(`  ${pc.dim(data.hint)}`);
+    }
+    blank();
+    hintCommand("Read the code once you get the email:", `domani auth-code ${domain}`);
+    blank();
     return;
   }
 
