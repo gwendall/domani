@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { run, assertSuccess, assertField, assertArray, skipIfNoAuth, skipIfNoMutate, TEST_DOMAIN } from "./helpers.js";
+import { run, assertSuccess, assertError, assertField, assertArray, skipIfNoAuth, skipIfNoMutate, TEST_DOMAIN } from "./helpers.js";
 
 describe("email workflow", () => {
   describe("email list (read-only)", () => {
@@ -18,6 +18,21 @@ describe("email workflow", () => {
       const result = run(["email", "status", "--domain", TEST_DOMAIN]);
       assertSuccess(result);
       assertField(result.data, "enabled");
+    });
+
+    it("accepts the domain as a positional argument, as the help text documents", (t) => {
+      if (skipIfNoAuth(t)) return;
+      const result = run(["email", "status", TEST_DOMAIN]);
+      assertSuccess(result);
+      assertField(result.data, "enabled");
+    });
+  });
+
+  describe("email threads (read-only)", () => {
+    it("rejects --limit over the cap with a clear, specific error code", (t) => {
+      if (skipIfNoAuth(t)) return;
+      const result = run(["email", "threads", "--from", `e2e-threads-cap@${TEST_DOMAIN}`, "--limit", "200"], { expectError: true });
+      assertError(result, "INVALID_LIMIT");
     });
   });
 

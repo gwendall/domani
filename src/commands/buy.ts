@@ -1,7 +1,8 @@
 import { apiRequest } from "../api.js";
 import { confirm as clackConfirm, select, isCancel, text, type TextOptions } from "@clack/prompts";
 import pc from "picocolors";
-import { S, fmt, blank, hintCommand, createSpinner, createProgressTable, jsonOut, skipConfirm, dryRunOut, fail, isTTY } from "../ui.js";
+import { S, fmt, blank, hintCommand, createSpinner, createProgressTable, jsonOut, skipConfirm, dryRunOut, fail, isTTY, asAccount } from "../ui.js";
+import { actingAsLabel } from "../config.js";
 import { requireValidDomain, requireValidDomains } from "../validate.js";
 import { acceptNewPrice, parseMaxPrice, priceToAccept, roundToCent } from "../max-price.js";
 import { perYear, renewalDiffers } from "../per-year.js";
@@ -44,7 +45,7 @@ async function nextSteps(domain: string): Promise<void> {
 
 type PurchaseOutcome =
   | { registered: Record<string, unknown> }
-  | { refused: { price: number; error?: string } };
+  | { refused: { price: number; error?: string; renewal_price?: unknown; listed_price?: unknown } };
 
 /** One streamed purchase, charging no more than maxPrice. */
 async function purchaseOne(domain: string, maxPrice: number | undefined, options: BuyOptions): Promise<PurchaseOutcome> {
@@ -62,7 +63,7 @@ async function purchaseOne(domain: string, maxPrice: number | undefined, options
     const price = priceToAccept(errData);
     if (price !== undefined) {
       p.stop("Price changed - nothing was charged");
-      return { refused: { price, error: errData.error } };
+      return { refused: { price, error: errData.error, renewal_price: errData.renewal_price, listed_price: errData.listed_price } };
     }
     p.stop("Purchase failed");
     fail(errData.error || errData.message, { hint: errData.hint, fixUrl: errData.setup_url || errData.payment_options?.card?.setup_url, status: res.status, json: options.json, fields: options.fields });
@@ -91,7 +92,7 @@ async function purchaseOne(domain: string, maxPrice: number | undefined, options
           const price = priceToAccept(payload);
           if (price !== undefined) {
             p.stop("Price changed - nothing was charged");
-            return { refused: { price, error: payload.error } };
+            return { refused: { price, error: payload.error, renewal_price: payload.renewal_price, listed_price: payload.listed_price } };
           }
           p.stop("Purchase failed");
           fail(payload.error, { hint: payload.hint, fixUrl: payload.setup_url, status: res.status, json: options.json, fields: options.fields });
@@ -140,12 +141,13 @@ async function buySingle(domain: string, options: BuyOptions): Promise<void> {
       ...(searchData.renewal_price !== undefined ? { renewal_price: searchData.renewal_price } : {}),
       currency: searchData.currency || "USD",
       max_price: ceiling,
+      acting_as: actingAsLabel(),
     }, options.json, options.fields);
   }
 
   if (!skipConfirm(options)) {
     const ok = await clackConfirm({
-      message: `Purchase ${pc.bold(domain)} for ${pc.green(perYear(searchData.price, searchData.renewal_price))}?`,
+      message: `Purchase ${pc.bold(domain)} for ${pc.green(perYear(searchData.price, searchData.renewal_price))}${asAccount()}?`,
     });
     if (!ok || typeof ok === "symbol") {
       console.log(`  ${pc.dim("Cancelled.")}`);
@@ -229,13 +231,14 @@ async function buyBulk(domains: string[], options: BuyOptions): Promise<void> {
       unavailable: unavailable.map((c) => c.domain),
       total_price: parseFloat(total.toFixed(2)),
       max_price: ceiling,
+      acting_as: actingAsLabel(),
     }, options.json, options.fields);
   }
 
   // 2. Confirm
   if (!skipConfirm(options)) {
     const ok = await clackConfirm({
-      message: `Purchase ${pc.bold(String(available.length))} domain${available.length > 1 ? "s" : ""} for ${fmt.price(total.toFixed(2))}${thenRenews}?`,
+      message: `Purchase ${pc.bold(String(available.length))} domain${available.length > 1 ? "s" : ""} for ${fmt.price(total.toFixed(2))}${thenRenews}${asAccount()}?`,
     });
     if (!ok || typeof ok === "symbol") {
       console.log(`  ${pc.dim("Cancelled.")}`);

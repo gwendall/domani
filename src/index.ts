@@ -1,16 +1,18 @@
 import { Command } from "commander";
+import mailBrand from "@domani/i18n/brand.json";
 
 // Clack spinners add keypress listeners for Ctrl+C handling.
 // Increase the limit to avoid false MaxListenersExceeded warnings during polling.
 process.stdin.setMaxListeners(50);
 import pc from "picocolors";
-import { setApiUrlOverride, checkVersion, CLI_VERSION } from "./config.js";
+import { setApiUrlOverride, setAccountOverride, isValidAccountName, checkVersion, CLI_VERSION } from "./config.js";
 import { ensureAuth } from "./auth.js";
 import { fail } from "./ui.js";
 import { APP_DOMAIN } from "./brand.js";
 import { login } from "./commands/login.js";
 import { logout } from "./commands/logout.js";
 import { me } from "./commands/me.js";
+import { accounts, use } from "./commands/accounts.js";
 import { search } from "./commands/search.js";
 import { buy } from "./commands/buy.js";
 import { provision } from "./commands/provision.js";
@@ -62,6 +64,7 @@ program
   .description(`Domain names for developers and AI agents - ${APP_DOMAIN}`)
   .version(CLI_VERSION)
   .option("--api-url <url>", "Override API base URL")
+  .option("--account <name>", "Act as this saved CLI account (overrides DOMANI_ACCOUNT and 'domani use')")
   .configureOutput({
     outputError: (str, write) => {
       // Strip Commander's "error: " prefix, we'll reformat it
@@ -78,6 +81,12 @@ program
   .hook("preAction", async (thisCommand, actionCommand) => {
     const opts = thisCommand.opts();
     if (opts.apiUrl) setApiUrlOverride(opts.apiUrl);
+    for (const [label, name] of [["--account", opts.account], ["DOMANI_ACCOUNT", process.env.DOMANI_ACCOUNT]]) {
+      if (name && !isValidAccountName(name)) {
+        fail(`Invalid ${label} name: ${name}`, { code: "validation_error", hint: "Use letters, digits, dot, dash or underscore (up to 63 characters)" });
+      }
+    }
+    if (opts.account) setAccountOverride(opts.account);
 
     // TTY auto-detect: when stdout is piped (not a terminal),
     // auto-enable JSON output for commands that support it.
@@ -93,7 +102,7 @@ program
 
     // Ensure auth before any authenticated command runs.
     // before any command spinner starts, so clack doesn't conflict.
-    const publicCommands = ["login", "logout", "search", "suggest", "tlds", "whois", "schema", "update", "uninstall", "mcp"];
+    const publicCommands = ["login", "logout", "accounts", "use", "search", "suggest", "tlds", "whois", "schema", "update", "uninstall", "mcp"];
     if (!publicCommands.includes(actionCommand.name())) {
       await ensureAuth();
     }
@@ -120,15 +129,37 @@ Examples:
   domani login --surface plugin         # authenticate the Domani agent plugin
   domani login --json                   # non-interactive (returns auth_url)
   domani login --no-open                # print login URL without opening browser
+  domani login --account work           # save a second Domani account as "work"
   DOMANI_API_KEY=domani_sk_xxx domani list  # skip login, use env var`)
   .action(login);
 
 program
   .command("logout")
-  .description("Clear saved credentials")
+  .description("Forget the saved login of the current account (or --account <name>)")
   .option("--yes", "Skip confirmation")
   .option("--json", "Output as JSON")
   .action(logout);
+
+program
+  .command("accounts")
+  .description("List the Domani accounts saved in this CLI and the one in use")
+  .option("--json", "Output as JSON")
+  .addHelpText("after", `
+Examples:
+  domani accounts                       # list saved accounts, * marks the one in use
+  domani login --account work           # add another account
+  domani use work                       # make it the default for every command
+  domani --account work list            # use it for one command
+  DOMANI_ACCOUNT=work domani mcp serve  # pin an agent's MCP bridge to it
+
+Precedence: DOMANI_API_KEY, then --account, then DOMANI_ACCOUNT, then 'domani use'.`)
+  .action(accounts);
+
+program
+  .command("use <name>")
+  .description("Switch the active account (see: domani accounts)")
+  .option("--json", "Output as JSON")
+  .action(use);
 
 program
   .command("me")
@@ -196,6 +227,8 @@ program
 Examples:
   domani login                          # authenticate once in your browser
   domani mcp serve                      # stdio bridge for agent plugins
+  domani --account work mcp serve       # pin the bridge to one saved account
+  DOMANI_ACCOUNT=work domani mcp serve  # same, from the plugin's environment
 
 The bridge reads the API token from the OS keychain. It never prints the token
 or places it in an MCP/plugin configuration file.`)
@@ -436,7 +469,7 @@ Examples:
 
 program
   .command("assistant [action] [id]")
-  .description("Mailzero assistant: Today decisions, settings, consent, history import, activity (private preview)")
+  .description(`${mailBrand.mailProductName} assistant: Today decisions, settings, consent, history import, activity (private preview)`)
   .option("--enable", "Show Today decisions and prepare drafts on demand (for set)")
   .option("--disable", "Stop surfacing decisions; shadow analysis may continue (for set)")
   .option("--shadow", "Analyze mail without surfacing decisions (for set)")
@@ -702,7 +735,7 @@ program
   .option("--ownership-disposition <mode>", "Offer ownership: unchanged or claim")
   .option("--creator-disposition <mode>", "After ownership claim: stay, stay_admin, or leave")
   .option("--billing-disposition <mode>", "Billing after offer: unchanged, sponsor, or transfer")
-  .option("--plan <plan>", "Mailzero plan: mail_solo, mail_team, or mail_business")
+  .option("--plan <plan>", `${mailBrand.mailProductName} plan: mail_solo, mail_team, or mail_business`)
   .option("--no-open", "Do not open checkout in a browser")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
@@ -728,7 +761,7 @@ Examples:
 
 program
   .command("dns [domain] [action] [type] [name] [value]")
-  .description("Manage DNS records (get/set/delete/snapshot/restore)")
+  .description("Manage DNS records (get/set/add/delete/snapshot/restore)")
   .option("--type <type>", "Record type: A, AAAA, CNAME, MX, TXT, NS, SRV")
   .option("--name <name>", "Record name (e.g. www, @, _dmarc)")
   .option("--value <value>", "Record value")
@@ -739,9 +772,10 @@ program
   .addHelpText("after", `
 Examples:
   domani dns myapp.dev get                                          # list all records
-  domani dns myapp.dev set --type A --name @ --value 76.76.21.21    # add A record
+  domani dns myapp.dev set --type A --name @ --value 76.76.21.21    # replace the @ A records with this one
+  domani dns myapp.dev add --type A --name @ --value 76.76.21.22    # add a second @ A record, keep the others
   domani dns myapp.dev set --type CNAME --name www --value cname.vercel-dns.com
-  domani dns myapp.dev delete --type A --name @
+  domani dns myapp.dev delete --type A --name @                     # delete every @ A record
   domani dns myapp.dev snapshot                                     # export DNS as JSON
   domani dns myapp.dev restore --file dns-backup.json               # restore from snapshot`)
   .action(dns);

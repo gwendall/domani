@@ -1,8 +1,9 @@
 import pc from "picocolors";
-import { getApiUrl, getToken, saveConfig, getConfig, isTTY } from "./config.js";
+import mailBrand from "@domani/i18n/brand.json";
+import { getApiUrl, getToken, saveAccount, selectedAccount, targetAccountName, isTTY } from "./config.js";
 import { S, fmt, blank, createSpinner, openUrl } from "./ui.js";
 
-/** Memoized — resolves instantly on subsequent calls within the same process. */
+/** Memoized - resolves instantly on subsequent calls within the same process. */
 let _authEnsured = false;
 let _proEnsured = false;
 
@@ -62,7 +63,7 @@ export async function ensurePaidPlan(): Promise<void> {
   }
 
   blank();
-  console.log(`  ${pc.dim("This feature requires a")} ${pc.bold("paid plan")} ${pc.dim("(including an active Mailzero workspace plan or legacy Pro subscription).")}`);
+  console.log(`  ${pc.dim("This feature requires a")} ${pc.bold("paid plan")} ${pc.dim(`(including an active ${mailBrand.mailProductName} workspace plan or legacy Pro subscription).`)}`);
   console.log(`  ${pc.dim("Opening pricing page")} ${S.arrow} ${pc.cyan("domani.run/pricing")}`);
   openUrl(`${apiUrl.replace("http://localhost:3000", "https://domani.run")}/pricing`);
   blank();
@@ -106,12 +107,16 @@ export async function ensureAuth(): Promise<void> {
 
   const isJson = process.argv.includes("--json") || !isTTY;
 
+  const { source } = selectedAccount();
+  const account = targetAccountName();
+  const loginCommand = source === "flag" || source === "env" ? `domani login --account ${account}` : "domani login";
+
   if (isJson) {
     console.log(JSON.stringify({
-      error: "Not logged in",
+      error: source === "flag" || source === "env" ? `Not logged in to the CLI account "${account}"` : "Not logged in",
       code: "auth_required",
-      hint: "Run 'domani login' or set DOMANI_API_KEY environment variable",
-      fix_command: "domani login",
+      hint: `Run '${loginCommand}' or set DOMANI_API_KEY environment variable`,
+      fix_command: loginCommand,
     }, null, 2));
     process.exit(1);
   }
@@ -169,7 +174,7 @@ export async function ensureAuth(): Promise<void> {
     if (!poll || (!poll.ok && poll.status !== 202)) continue;
     const data = await poll.json().catch(() => ({}));
     if (data.status === "complete") {
-      saveConfig({ ...getConfig(), token: data.token, email: data.email, api_url: apiUrl });
+      saveAccount(account, { token: data.token, email: data.email, api_url: apiUrl });
       _authEnsured = true;
       s.stop(`${S.success} Logged in as ${pc.bold(data.email)}`);
       blank();

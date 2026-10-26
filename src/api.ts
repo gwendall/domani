@@ -43,7 +43,7 @@ export async function apiRequest(
     },
   });
 
-  // Inline upgrade flow — same pattern as ensureAuth
+  // Inline upgrade flow - same pattern as ensureAuth
   if (!_retrying) {
     const text = await res.clone().text();
     try {

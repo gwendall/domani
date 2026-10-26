@@ -88,7 +88,7 @@ async function sellList(
   const listingStatus = data.listing?.status ?? "pending_verification";
 
   if (listingStatus === "active") {
-    // Internal domain — auto-verified
+    // Internal domain - auto-verified
     s.stop(`${S.success} Listed for sale`);
     heading("Sell Domain");
     row("Domain", fmt.domain(data.listing?.domain || domain));
@@ -98,7 +98,7 @@ async function sellList(
     console.log(`  ${pc.dim("Your listing is live on the marketplace.")}`);
     blank();
   } else {
-    // External domain — needs TXT verification
+    // External domain - needs TXT verification
     s.stop(`${S.success} Verification record ready`);
     heading("Sell Domain");
     row("Domain", fmt.domain(data.listing?.domain || domain));

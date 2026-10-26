@@ -21,6 +21,9 @@ importers:
         specifier: 1.1.0
         version: 1.1.0
     devDependencies:
+      '@domani/i18n':
+        specifier: file:vendor/i18n
+        version: file:vendor/i18n
       '@types/node':
         specifier: 20.19.33
         version: 20.19.33
@@ -41,6 +44,9 @@ packages:
 
   '@clack/prompts@1.0.1':
     resolution: {integrity: sha512-/42G73JkuYdyWZ6m8d/CJtBrGl1Hegyc7Fy78m5Ob+jF85TOUmLR5XLce/U3LxYAw0kJ8CT5aI99RIvPHcGp/Q==}
+
+  '@domani/i18n@file:vendor/i18n':
+    resolution: {directory: vendor/i18n, type: directory}
 
   '@esbuild/aix-ppc64@0.27.3':
     resolution: {integrity: sha512-9fJMTNFTWZMh5qwrBItuziu834eOCUcEqymSH7pY+zoMVEZg3gcPuBNxH1EvfVYe9h0x/Ptw8KBzv7qxb7l8dg==}
@@ -415,6 +421,8 @@ snapshots:
       '@clack/core': 1.0.1
       picocolors: 1.1.1
       sisteransi: 1.0.5
+
+  '@domani/i18n@file:vendor/i18n': {}
 
   '@esbuild/aix-ppc64@0.27.3':
     optional: true

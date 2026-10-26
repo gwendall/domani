@@ -1,6 +1,6 @@
 {
   "name": "domani-cli",
-  "version": "0.4.75",
+  "version": "0.4.83",
   "type": "module",
   "description": "Domain infrastructure for AI agents. Search, register, DNS, email, connect - all from your terminal. Installs the `domani` command.",
   "license": "MIT",
@@ -58,6 +58,7 @@
     "yocto-spinner": "1.1.0"
   },
   "devDependencies": {
+    "@domani/i18n": "file:vendor/i18n",
     "@types/node": "20.19.33",
     "esbuild": "0.27.3",
     "tsx": "4.23.1",

@@ -1,7 +1,8 @@
 import { apiRequest } from "../api.js";
 import { confirm as clackConfirm } from "@clack/prompts";
 import pc from "picocolors";
-import { S, fmt, heading, row, blank, hintCommand, createSpinner, jsonOut, skipConfirm, dryRunOut, fail } from "../ui.js";
+import { S, fmt, heading, row, blank, hintCommand, createSpinner, jsonOut, skipConfirm, dryRunOut, fail, asAccount } from "../ui.js";
+import { actingAsLabel } from "../config.js";
 import { requireValidDomain } from "../validate.js";
 import { pickDomain } from "../prompt.js";
 import { acceptNewPrice, parseMaxPrice, priceToAccept, roundToCent } from "../max-price.js";
@@ -38,14 +39,14 @@ export async function renew(
   let ceiling = requested ?? total;
 
   if (options.dryRun) {
-    return dryRunOut("renew", { domain, years, price: total, currency: "USD", max_price: ceiling }, options.json, options.fields);
+    return dryRunOut("renew", { domain, years, price: total, currency: "USD", max_price: ceiling, acting_as: actingAsLabel() }, options.json, options.fields);
   }
 
   if (!skipConfirm(options)) {
     const ok = await clackConfirm({
       message: total !== undefined
-        ? `Renew ${pc.bold(domain)} for ${term} for ${fmt.price(total.toFixed(2))}?`
-        : `Renew ${pc.bold(domain)} for ${term}? You will be charged.`,
+        ? `Renew ${pc.bold(domain)} for ${term} for ${fmt.price(total.toFixed(2))}${asAccount()}?`
+        : `Renew ${pc.bold(domain)} for ${term}${asAccount()}? You will be charged.`,
     });
     if (!ok || typeof ok === "symbol") {
       console.log(`  ${pc.dim("Cancelled.")}`);

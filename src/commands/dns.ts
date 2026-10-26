@@ -6,6 +6,30 @@ import { pickDomain } from "../prompt.js";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+export interface DnsRecordLike {
+  type: string;
+  name: string;
+  value: string;
+  ttl?: number;
+}
+
+/**
+ * The zone after `set` or `add`. `set` replaces every record of that type and
+ * name with the one value; `add` keeps them and adds the value beside them
+ * (a second A record), except a value already there or a second CNAME.
+ */
+export function nextDnsRecords(
+  existing: DnsRecordLike[],
+  record: { type: string; name: string; value: string },
+  mode: "set" | "add",
+): { kind: "write"; records: DnsRecordLike[] } | { kind: "unchanged" } | { kind: "cname_taken" } {
+  const sameName = (r: DnsRecordLike) => r.type === record.type && r.name === record.name;
+  if (mode === "add" && existing.some((r) => sameName(r) && r.value === record.value)) return { kind: "unchanged" };
+  if (mode === "add" && record.type === "CNAME" && existing.some(sameName)) return { kind: "cname_taken" };
+  const kept = mode === "add" ? existing : existing.filter((r) => !sameName(r));
+  return { kind: "write", records: [...kept, { ...record, ttl: 3600 }] };
+}
+
 export async function dns(
   domain: string | undefined,
   action?: string,
@@ -70,11 +94,14 @@ export async function dns(
     return;
   }
 
-  // ── SET ──────────────────────────────────────────────
-  if (action === "set") {
+  // ── SET / ADD ────────────────────────────────────────
+  // set replaces every record of that type and name with this one value;
+  // add keeps them and adds the value beside them (a second A record).
+  if (action === "set" || action === "add") {
+    const adding = action === "add";
     if (!type || !name || !value) {
-      fail("Missing arguments for dns set", {
-        hint: "Usage: domani dns <domain> set --type A --name www --value 1.2.3.4",
+      fail(`Missing arguments for dns ${action}`, {
+        hint: `Usage: domani dns <domain> ${action} --type A --name www --value 1.2.3.4`,
         code: "validation_error",
         json: jsonOutput,
         fields: options?.fields,
@@ -82,23 +109,41 @@ export async function dns(
     }
 
     if (options?.dryRun) {
-      return dryRunOut("dns_set", {
+      return dryRunOut(adding ? "dns_add" : "dns_set", {
         domain,
         record: { type: type.toUpperCase(), name, value, ttl: 3600 },
       }, jsonOutput, options?.fields);
     }
 
     const s = createSpinner(!jsonOutput);
-    s.start(`Setting ${pc.yellow(type.toUpperCase())} record`);
+    s.start(`${adding ? "Adding" : "Setting"} ${pc.yellow(type.toUpperCase())} record`);
 
+    // The write replaces the whole zone: without the current records it would wipe them.
     const getRes = await apiRequest(`/api/domains/${encodeURIComponent(domain)}/dns`);
     const getData = await getRes.json();
-    const existing = getRes.ok ? getData.records : [];
+    if (!getRes.ok) {
+      s.stop("Failed");
+      fail(getData.error || getData.message || "Could not read the current DNS records; nothing was changed.", { hint: getData.hint, status: getRes.status, json: jsonOutput, fields: options?.fields });
+    }
+    const existing: DnsRecordLike[] = getData.records ?? [];
+    const recordType = type.toUpperCase();
+    const next = nextDnsRecords(existing, { type: recordType, name, value }, adding ? "add" : "set");
 
-    const updated = existing.filter(
-      (r: { type: string; name: string }) => !(r.type === type.toUpperCase() && r.name === name)
-    );
-    updated.push({ type: type.toUpperCase(), name, value, ttl: 3600 });
+    if (next.kind === "unchanged") {
+      s.stop(`${S.success} ${pc.yellow(recordType)} ${name} ${S.arrow} ${pc.cyan(value)} already exists`);
+      if (jsonOutput) jsonOut({ records: existing, unchanged: true }, options?.fields);
+      return;
+    }
+    if (next.kind === "cname_taken") {
+      s.stop("Failed");
+      fail(`${name} already has a CNAME record; a name can hold only one.`, {
+        hint: `Replace it with: domani dns ${domain} set --type CNAME --name ${name} --value ${value}`,
+        code: "validation_error",
+        json: jsonOutput,
+        fields: options?.fields,
+      });
+    }
+    const updated = next.records;
 
     const res = await apiRequest(`/api/domains/${encodeURIComponent(domain)}/dns`, {
       method: "PUT",
@@ -283,5 +328,5 @@ export async function dns(
     return;
   }
 
-  fail(`Unknown action: ${action}`, { hint: "Use 'get', 'set', 'delete', 'snapshot', or 'restore'.", code: "validation_error", json: jsonOutput, fields: options?.fields });
+  fail(`Unknown action: ${action}`, { hint: "Use 'get', 'set', 'add', 'delete', 'snapshot', or 'restore'.", code: "validation_error", json: jsonOutput, fields: options?.fields });
 }

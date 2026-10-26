@@ -90,8 +90,12 @@ export async function update(options?: { json?: boolean; yes?: boolean }): Promi
     const realPath = fs.realpathSync(binPath);
     const tmpPath = realPath + ".tmp";
 
-    // Write new version, then atomic rename
+    // Write new version, then atomic rename. writeFileSync's mode option is
+    // still masked by the process umask, so a restrictive umask (e.g. 077)
+    // can silently leave the binary non-executable; chmod afterward to set
+    // the mode exactly, regardless of umask.
     fs.writeFileSync(tmpPath, bundle, { mode: 0o755 });
+    fs.chmodSync(tmpPath, 0o755);
     fs.renameSync(tmpPath, realPath);
 
     s2.stop(`${S.success} Updated to v${latest}`);

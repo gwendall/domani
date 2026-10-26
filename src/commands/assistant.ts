@@ -1,5 +1,6 @@
 import pc from "picocolors";
 import { writeFileSync } from "node:fs";
+import mailBrand from "@domani/i18n/brand.json";
 import { apiRequest } from "../api.js";
 import { persistentIdempotencyKey } from "../idempotency.js";
 import { blank, createSpinner, fail, heading, jsonOut, row, S, table } from "../ui.js";
@@ -274,7 +275,7 @@ async function responseOrFail(res: Response, options: AssistantOptions) {
   const data = await res.json();
   if (res.ok) return data;
   if (data.code === "NOT_AVAILABLE") {
-    fail("The Mailzero assistant is in private preview", { hint: "It is enabled per account during the private beta. Ask for access at https://domani.run/support or wait for general availability.", code: "not_available", status: res.status, json: options.json, fields: options.fields });
+    fail(`The ${mailBrand.mailProductName} assistant is in private preview`, { hint: "It is enabled per account during the private beta. Ask for access at https://domani.run/support or wait for general availability.", code: "not_available", status: res.status, json: options.json, fields: options.fields });
   }
   if (data.code === "INSUFFICIENT_SCOPE") {
     fail(data.error || "Missing assistant scope", { hint: "This token needs the assistant:read scope for reads and assistant:write for changes. Create one with: domani tokens create --scopes assistant:read,assistant:write", code: "insufficient_scope", status: res.status, json: options.json, fields: options.fields });
@@ -423,7 +424,7 @@ function showItem(data: Record<string, unknown>, options: AssistantOptions): voi
 
 function showSettings(data: Record<string, any>, options: AssistantOptions): void {
   if (options.json) return jsonOut(data, options.fields);
-  blank(); heading("Mailzero assistant");
+  blank(); heading(`${mailBrand.mailProductName} assistant`);
   row("Enabled", data.enabled ? "yes" : "no"); row("Shadow", data.shadow_enabled ? "yes" : "no"); row("Paused", data.paused ? "yes" : "no");
   row("History window", `${data.history_window_days} days`); row("Privacy route", String(data.privacy_route || ""));
   row("Consent", data.consent?.accepted_version ? `${data.consent.accepted_version} at ${data.consent.accepted_at}` : `none (required: ${data.consent?.required_version || ASSISTANT_CONSENT_VERSION})`);

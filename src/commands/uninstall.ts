@@ -4,6 +4,8 @@ import os from "os";
 import { confirm as clackConfirm } from "@clack/prompts";
 import pc from "picocolors";
 import { S, blank } from "../ui.js";
+import { listAccounts } from "../config.js";
+import { keychainDelete } from "../keychain.js";
 
 export async function uninstall(): Promise<void> {
   const binPath = process.argv[1];
@@ -22,7 +24,10 @@ export async function uninstall(): Promise<void> {
     return;
   }
 
-  // Remove config directory
+  // Remove every saved login's keychain entry, then the config directory
+  for (const account of listAccounts()) {
+    if (account.token_in_keychain) keychainDelete(account.name);
+  }
   fs.rmSync(configDir, { recursive: true, force: true });
 
   // Remove binary

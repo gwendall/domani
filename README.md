@@ -39,6 +39,8 @@ domani mcp serve
 `domani login` stores the credential in the operating-system keychain when one
 is available. The stdio bridge resolves it locally and forwards MCP requests to
 `https://domani.run/mcp`; stdout remains reserved for JSON-RPC messages.
+To pin the bridge to one of several saved accounts, start it with
+`DOMANI_ACCOUNT=<name> domani mcp serve` (or `domani --account <name> mcp serve`).
 
 For an agent acting on someone else's behalf, request a scoped, expiring
 credential instead of their account key:
@@ -228,8 +230,10 @@ domani transfer-away <domain>      Check outbound transfer status
 
 ```
 domani login                       Log in to domani.run (opens browser)
-domani logout                      Clear saved credentials
-domani me                          Show account info
+domani logout                      Forget the current account's login (--account <name> for another)
+domani accounts                    List saved accounts, * marks the one in use
+domani use <name>                  Switch the active account
+domani me                          Show account info and the CLI account in use
 domani billing                     Add or update payment method (opens browser)
 domani invoices                    List payment invoices
 domani notifications               List notifications (--unread, --limit, --cursor; --read marks all read)
@@ -303,12 +307,32 @@ domani buy myapp.dev                     # Charged to saved card
 | OS keychain | Credential saved by `domani login` when available |
 | `~/.domani/config.json` | Non-secret CLI settings, plus legacy fallback on systems without a keychain |
 
-The CLI checks `$DOMANI_API_KEY` first, then falls back to `~/.domani/config.json`.
+The CLI checks `$DOMANI_API_KEY` first, then falls back to the saved login.
 
 ```bash
 domani login                             # Interactive (opens browser)
 export DOMANI_API_KEY=domani_sk_...      # Or set env var
 ```
+
+### Several accounts
+
+The CLI can keep more than one Domani account, each under a name, with its own
+keychain entry:
+
+```bash
+domani login --account work              # save a second account as "work"
+domani accounts                          # list them; * marks the one in use
+domani use work                          # make "work" the active account
+domani --account personal list           # use another account for one command
+DOMANI_ACCOUNT=work domani mcp serve     # pin an agent's MCP bridge to "work"
+domani logout --account work             # forget that login only
+```
+
+The credential a command uses is, in order: `DOMANI_API_KEY`, `--account`,
+`DOMANI_ACCOUNT`, then the active account. `domani me` shows the account in use,
+and the buy, renew and transfer confirmations name it before anything is
+charged. A login saved by an earlier CLI version becomes the account `default`,
+with nothing to redo.
 
 Scoped API tokens can be created with `domani tokens create --scopes read,dns --expires-in 86400`.
 
@@ -317,6 +341,8 @@ Scoped API tokens can be created with `domani tokens create --scopes read,dns --
 | Variable | Description |
 |----------|-------------|
 | `DOMANI_API_KEY` | API key (takes precedence over saved config) |
+| `DOMANI_ACCOUNT` | Saved CLI account to use (below `--account`, above `domani use`) |
+| `DOMANI_CONFIG_DIR` | Config directory (default `~/.domani`) |
 
 ## License
 

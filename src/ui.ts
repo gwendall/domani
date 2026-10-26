@@ -1,5 +1,6 @@
 import pc from "picocolors";
 import { execFile } from "child_process";
+import { actingAsLabel } from "./config.js";
 
 // ── TTY auto-detect ──────────────────────────────────
 // When stdout is not a TTY (piped to another program or agent),
@@ -195,6 +196,12 @@ function pick(obj: Record<string, unknown>, keys: string[]): Record<string, unkn
 /** Returns true if confirmation should be skipped (--yes, --json, or non-TTY implies --yes) */
 export function skipConfirm(options: { yes?: boolean; json?: boolean }): boolean {
   return !!(options.yes || isJsonOutput(options));
+}
+
+/** " as work (me@acme.com)" for the confirmation of an action that charges, so nobody pays from the wrong account. */
+export function asAccount(): string {
+  const label = actingAsLabel();
+  return label ? ` as ${pc.bold(label)}` : "";
 }
 
 // ── Dry-run output ──────────────────────────────────

@@ -1,5 +1,5 @@
 import readline from "node:readline";
-import { getApiUrl, getToken } from "./config.js";
+import { getApiUrl, getToken, selectedAccount } from "./config.js";
 
 type JsonRpcId = string | number | null;
 type JsonRpcMessage = {
@@ -136,10 +136,12 @@ export async function proxyMcpPayload(
 
   const body = await response.text();
   if (response.status === 401) {
+    const { name, source } = options.getAuthToken ? { name: undefined, source: "none" } : selectedAccount();
+    const login = `npx -y domani-cli@latest login${source === "flag" || source === "env" ? ` --account ${name}` : ""}`;
     const error = errorsForPayload(payload, -32001, "Domani authentication required", {
       code: "AUTH_REQUIRED",
-      hint: "Run `npx -y domani-cli@latest login`, approve access in the browser, then retry. Never paste an API key into chat.",
-      fix_command: "npx -y domani-cli@latest login",
+      hint: `Run \`${login}\`, approve access in the browser, then retry. Never paste an API key into chat.`,
+      fix_command: login,
     });
     return error === undefined ? [] : [error];
   }

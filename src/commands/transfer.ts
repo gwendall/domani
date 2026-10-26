@@ -1,7 +1,8 @@
 import { apiRequest } from "../api.js";
 import { confirm as clackConfirm, text, isCancel } from "@clack/prompts";
 import pc from "picocolors";
-import { S, fmt, heading, row, blank, hintCommand, createSpinner, jsonOut, skipConfirm, dryRunOut, fail } from "../ui.js";
+import { S, fmt, heading, row, blank, hintCommand, createSpinner, jsonOut, skipConfirm, dryRunOut, fail, asAccount } from "../ui.js";
+import { actingAsLabel } from "../config.js";
 import { requireValidDomain } from "../validate.js";
 import { APP_DOMAIN } from "../brand.js";
 import { waitForEligibility } from "../transfer-eligibility.js";
@@ -126,6 +127,7 @@ export async function transfer(
       nameservers: check.current.nameservers,
       dns_provider: check.current.dns_provider,
       dnssec_enabled: check.current.dnssec_enabled,
+      acting_as: actingAsLabel(),
     }, options.json, options.fields);
   }
 
@@ -139,7 +141,7 @@ export async function transfer(
     blank();
     const price = check.options.transfer.price != null ? ` for ${fmt.price(check.options.transfer.price.toFixed(2))}` : "";
     const ok = await clackConfirm({
-      message: `Transfer ${pc.bold(domain)} to ${APP_DOMAIN}${price}? Nameservers stay unchanged and 1 year is included.`,
+      message: `Transfer ${pc.bold(domain)} to ${APP_DOMAIN}${price}${asAccount()}? Nameservers stay unchanged and 1 year is included.`,
     });
     if (!ok || typeof ok === "symbol") {
       console.log(`  ${pc.dim("Cancelled.")}`);

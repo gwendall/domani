@@ -74,7 +74,7 @@ async function listTokens(json?: boolean, fields?: string): Promise<void> {
     return [
       pc.dim(t.id),
       pc.bold(t.name),
-      t.agent_identity ? pc.dim(t.agent_identity.name || t.agent_identity.slug) : pc.dim("—"),
+      t.agent_identity ? pc.dim(t.agent_identity.name || t.agent_identity.slug) : pc.dim("-"),
       scopeStr,
       expiry,
     ];

@@ -145,6 +145,17 @@ function parseEmailArg(arg2: string | undefined, options: EmailOptions): void {
   }
 }
 
+/**
+ * The domain for `email setup`/`email status`: --domain, or the bare domain
+ * the help text documents as the positional argument ("domani email status
+ * myapp.dev"). A "user@domain" arg2 is parseEmailArg's job, not this one.
+ */
+export function resolveDomainArg(arg2: string | undefined, options: Pick<EmailOptions, "domain">): string | undefined {
+  if (options.domain) return options.domain;
+  if (arg2 && !arg2.includes("@")) return arg2;
+  return undefined;
+}
+
 async function requireDomain(options: EmailOptions): Promise<string> {
   if (options.domain) {
     requireValidDomain(options.domain, options);
@@ -198,8 +209,10 @@ export async function email(
     case "unstar":
       return lifecycleActionCli(action, options);
     case "setup":
+      options.domain = resolveDomainArg(arg2, options);
       return setupEmail(options);
     case "status":
+      options.domain = resolveDomainArg(arg2, options);
       return emailStatusCli(options);
     case "remove":
       return removeEmail(options);
@@ -411,7 +424,9 @@ async function threadsCli(options: EmailOptions): Promise<void> {
   const qs = params.toString();
   const response = await apiRequest(`/api/emails/${encodeURIComponent(address)}/threads${qs ? `?${qs}` : ""}`);
   const data = await response.json();
-  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  // Keep the server's own code (e.g. INVALID_LIMIT for --limit over the cap)
+  // instead of letting fail() guess a generic one from the HTTP status.
+  if (!response.ok) fail(data.error || data.message, { code: data.code, hint: data.hint, status: response.status, json: options.json, fields: options.fields });
   if (options.json) return jsonOut(data, options.fields);
   heading(`Threads in ${address}`);
   if (!data.threads.length) { console.log(`  ${pc.dim("No conversations here.")}`); return; }
@@ -784,10 +799,10 @@ async function createMailboxCli(options: EmailOptions): Promise<void> {
       console.log(`  ${pc.dim("→")} ${pc.cyan(r.value)}`);
       blank();
     }
-    hint("DNS propagation typically takes 5–30 minutes. Checking automatically...");
+    hint("DNS propagation typically takes 5-30 minutes. Checking automatically...");
     blank();
 
-    // Progress table — one row per record, updated individually
+    // Progress table - one row per record, updated individually
     const ptRows = allRecords.map((r) => ({
       cells: [pc.yellow(r.type), r.name, r.note ? pc.dim(`(${r.note})`) : ""],
       status: "pending" as const,

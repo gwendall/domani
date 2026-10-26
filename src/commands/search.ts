@@ -85,41 +85,41 @@ const BATCH_SIZE = 10;
 // Server rejects bulk search requests above this many domains (TOO_MANY_DOMAINS)
 const MAX_BULK_DOMAINS = 200;
 
-// Curated priority order — most desirable TLDs searched first, regardless of price
+// Curated priority order - most desirable TLDs searched first, regardless of price
 const PRIORITY_TLDS = [
-  // Tier 1 — universally recognized
+  // Tier 1 - universally recognized
   "com", "io", "ai", "dev", "app", "co",
-  // Tier 2 — widely used generics
+  // Tier 2 - widely used generics
   "net", "org", "xyz", "sh", "me", "cc",
-  // Tier 3 — strong tech/startup
+  // Tier 3 - strong tech/startup
   "tech", "run", "cloud", "so", "gg", "fm", "tv", "pro", "one",
-  // Tier 4 — business entity
+  // Tier 4 - business entity
   "inc", "ltd", "llc", "biz", "group", "global", "ventures", "capital", "fund", "agency",
-  // Tier 5 — product/commerce
+  // Tier 5 - product/commerce
   "store", "shop", "market", "sale", "deals", "auction", "trade",
-  // Tier 6 — creative/design
+  // Tier 6 - creative/design
   "studio", "design", "art", "space", "style", "fashion", "luxury", "brand", "media", "digital",
-  // Tier 7 — web presence
+  // Tier 7 - web presence
   "site", "online", "live", "show", "world", "zone", "land", "place", "city", "town",
-  // Tier 8 — content/social
+  // Tier 8 - content/social
   "blog", "news", "social", "chat", "link", "page", "fun", "lol", "meme", "wtf",
-  // Tier 9 — dev/tools
+  // Tier 9 - dev/tools
   "tools", "build", "works", "work", "team", "solutions", "services", "systems", "network", "software",
-  // Tier 10 — entertainment
+  // Tier 10 - entertainment
   "music", "video", "photo", "photos", "game", "games", "club", "stream", "film", "movie",
-  // Tier 11 — food/hospitality
+  // Tier 11 - food/hospitality
   "pizza", "coffee", "beer", "bar", "pub", "restaurant", "cafe", "kitchen", "food", "wine",
-  // Tier 12 — health/wellness
+  // Tier 12 - health/wellness
   "health", "care", "clinic", "dental", "fitness", "yoga", "bio", "life", "lifestyle",
-  // Tier 13 — finance/legal
+  // Tier 13 - finance/legal
   "finance", "money", "legal", "law", "cash",
-  // Tier 14 — knowledge/education
+  // Tier 14 - knowledge/education
   "academy", "university", "education", "training", "courses", "science", "wiki", "guide",
-  // Tier 15 — country codes (popular)
+  // Tier 15 - country codes (popular)
   "us", "uk", "eu", "ca", "au", "de", "fr", "it", "es", "nl", "jp", "sg", "nz", "mx",
-  // Tier 16 — real estate/local
+  // Tier 16 - real estate/local
   "house", "homes", "realty", "estate", "garden", "nyc", "london", "berlin", "paris",
-  // Tier 17 — misc popular
+  // Tier 17 - misc popular
   "guru", "ninja", "rocks", "fail", "party", "vip", "gold", "black", "pink", "red",
   "events", "travel", "sport", "jobs", "careers", "consulting", "energy", "eco", "green",
   "support", "help", "info", "new", "now", "today", "day",
@@ -173,7 +173,7 @@ async function liveSelectSearch(
   const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
   let spinnerFrame = 0;
 
-  // Only advances the spinner frame — render() is called directly by stream/keys
+  // Only advances the spinner frame - render() is called directly by stream/keys
   const renderLoop = setInterval(() => {
     if (done || !streaming) return;
     spinnerFrame = (spinnerFrame + 1) % spinnerFrames.length;
@@ -501,7 +501,7 @@ export async function search(
         blank();
       }
     } else if (data.for_sale?.buyable) {
-      // Domain is taken but listed for sale — can be purchased via buy
+      // Domain is taken but listed for sale - can be purchased via buy
       s.stop(`${S.info} ${fmt.domain(data.domain)} ${S.dot} ${pc.cyan("for sale")} ${S.dot} ${fmt.price(data.for_sale.price)}`);
       if (isTTY && !options.json) {
         const { buy } = await import("./buy.js");
@@ -735,7 +735,7 @@ export async function search(
     } else if (r.for_sale) {
       console.log(`  ${S.info} ${fmt.domain(r.domain).padEnd(37)} ${pc.cyan(fmt.price(r.for_sale.price))} ${pc.dim("(for sale)")}`);
     } else if (r.error) {
-      // skip — TLD lookup failed, don't show as taken
+      // skip - TLD lookup failed, don't show as taken
     } else {
       console.log(`  ${S.error} ${pc.dim(r.domain.padEnd(38))} ${pc.red("taken")}`);
     }

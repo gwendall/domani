@@ -1,0 +1,8 @@
+{
+  "name": "@domani/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./brand.json": "./brand.json"
+  }
+}

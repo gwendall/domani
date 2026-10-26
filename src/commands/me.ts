@@ -1,4 +1,5 @@
 import { apiRequest } from "../api.js";
+import { currentAccount } from "../config.js";
 import pc from "picocolors";
 import { S, heading, row, blank, jsonOut, fail } from "../ui.js";
 
@@ -15,13 +16,19 @@ export async function me(options: { json?: boolean; fields?: string }): Promise<
 
   const activation = activationRes.ok ? await activationRes.json() : null;
 
+  const account = currentAccount();
+  const cliAccount = { name: account.name ?? null, source: account.source };
+
   if (options.json) {
-    jsonOut({ ...data, activation }, options.fields);
+    jsonOut({ ...data, activation, cli_account: cliAccount }, options.fields);
     return;
   }
 
   heading("Account");
   row("Email", pc.bold(data.email));
+  row("CLI account", account.source === "api_key_env"
+    ? pc.dim("DOMANI_API_KEY")
+    : `${account.name ?? "-"}${account.source === "flag" ? pc.dim(" (--account)") : account.source === "env" ? pc.dim(" (DOMANI_ACCOUNT)") : ""}`);
   row("Payment", data.has_payment_method ? `${S.success} ${pc.green("active")}` : `${S.error} ${pc.dim("none")}`);
   row("Domains", String(data.domain_count));
   row("API tokens", String(data.token_count));

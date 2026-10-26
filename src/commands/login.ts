@@ -1,4 +1,4 @@
-import { getApiUrl, saveConfig, getConfig, getToken } from "../config.js";
+import { getApiUrl, saveAccount, accountToken, targetAccountName, getConfig, listAccounts } from "../config.js";
 import pc from "picocolors";
 import { S, fmt, blank, hintCommand, createSpinner, openUrl, jsonOut, fail } from "../ui.js";
 
@@ -51,6 +51,11 @@ export function buildLoginRequest(options: LoginOptions): {
   };
 }
 
+function accountSuffix(account: string): string {
+  const named = account !== "default" || listAccounts().some((a) => a.name !== account);
+  return named ? ` ${pc.dim(`(account ${account})`)}` : "";
+}
+
 export async function login(options: LoginOptions): Promise<void> {
   const apiUrl = getApiUrl();
   const s = createSpinner(!options.json);
@@ -65,9 +70,11 @@ export async function login(options: LoginOptions): Promise<void> {
   }
   const { body, delegated } = request;
 
-  // Check if already logged in
-  const config = getConfig();
-  const existingToken = getToken();
+  // Each login is saved under a CLI account (--account / DOMANI_ACCOUNT, else
+  // the active one, else "default"), so logging into a second Domani account
+  // never overwrites the first.
+  const account = targetAccountName();
+  const existingToken = accountToken(account);
   if (existingToken && !delegated) {
     s.start("Checking session");
     try {
@@ -76,9 +83,9 @@ export async function login(options: LoginOptions): Promise<void> {
       });
       if (meRes.ok) {
         const me = await meRes.json();
-        s.stop(`Already logged in as ${pc.bold(me.email)}`);
+        s.stop(`Already logged in as ${pc.bold(me.email)}${accountSuffix(account)}`);
         if (options.json) {
-          jsonOut({ status: "already_logged_in", email: me.email });
+          jsonOut({ status: "already_logged_in", email: me.email, account });
         }
         return;
       }
@@ -111,7 +118,7 @@ export async function login(options: LoginOptions): Promise<void> {
   s.stop("Auth code received");
 
   if (options.json) {
-    jsonOut({ status: "awaiting_approval", code, auth_url, expires_in });
+    jsonOut({ status: "awaiting_approval", code, auth_url, expires_in, account });
     return;
   }
 
@@ -139,9 +146,17 @@ export async function login(options: LoginOptions): Promise<void> {
     const data = await pollRes.json();
 
     if (data.status === "complete") {
-      saveConfig({ ...getConfig(), token: data.token, email: data.email, api_url: apiUrl });
-      s.stop(`Logged in as ${pc.bold(data.email)}`);
+      saveAccount(account, { token: data.token, email: data.email, api_url: apiUrl });
+      s.stop(`Logged in as ${pc.bold(data.email)}${accountSuffix(account)}`);
       blank();
+      const active = getConfig().active_account;
+      if (active && active !== account) {
+        console.log(`  ${pc.dim(`Commands still act as the active account "${active}".`)}`);
+        hintCommand("Switch to this one:", `domani use ${account}`);
+        hintCommand("Or use it once:", `domani --account ${account} me`);
+        blank();
+        return;
+      }
       console.log(`  ${pc.bold("Get one real result:")}`);
       hintCommand("1. Create your free inbox:", "domani email create YOUR_HANDLE@domani.run");
       hintCommand("2. Connect your webhook:", "domani email webhook YOUR_HANDLE@domani.run --url https://YOUR_AGENT/webhook");

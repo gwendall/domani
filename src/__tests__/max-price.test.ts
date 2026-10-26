@@ -128,6 +128,19 @@ describe("buy and renew against a stubbed API", () => {
     assert.equal(out.price, 12.5);
   });
 
+  it("a single buy whose registrar changed carries the new price, the listed one and the renewal", async () => {
+    // kiku.sh, 2026-10-16: the registrar with the listed price could not take it.
+    const changed = { error: "a.dev costs $77.00 (renews at $77.00/year), above the $4.50 listed.", code: "PRICE_ABOVE_MAX", price: 77, listed_price: 4.5, renewal_price: 77 };
+    reset(() => sse([["checking", { domain: "a.dev" }], ["error", changed]]));
+    await assert.rejects(buy(["a.dev"], { json: true }), (err: unknown) => err instanceof Exit && err.code === 1);
+    const out = lastJson();
+    assert.equal(out.code, "price_above_max");
+    assert.equal(out.price, 77);
+    assert.equal(out.listed_price, 4.5);
+    assert.equal(out.renewal_price, 77);
+    assert.match(out.hint, /--max-price 77\.00/u);
+  });
+
   const renewed = { domain: "a.dev", renewed_years: 3, new_expiry: "2029-10-14T00:00:00.000Z", price: 155.4, currency: "USD" };
 
   it("a renewal caps the charge at the yearly price times the years", async () => {
@@ -162,7 +175,7 @@ describe("buy and renew against a stubbed API", () => {
     reset(() => json(renewed));
     await renew("a.dev", { years: "3", json: true, dryRun: true });
     assert.equal(postedBodies.length, 0);
-    assert.deepEqual(lastJson(), { dry_run: true, action: "renew", domain: "a.dev", years: 3, price: 155.4, currency: "USD", max_price: 155.4 });
+    assert.deepEqual(lastJson(), { dry_run: true, action: "renew", domain: "a.dev", years: 3, price: 155.4, currency: "USD", max_price: 155.4, acting_as: "DOMANI_API_KEY" });
   });
 
   it("rejects a --max-price that is not a positive amount", async () => {

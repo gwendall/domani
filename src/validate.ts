@@ -8,7 +8,7 @@
 
 // ── Patterns ─────────────────────────────────────────
 
-/** ASCII control characters (0x00–0x1F) except tab/newline */
+/** ASCII control characters (0x00-0x1F) except tab/newline */
 const CONTROL_CHAR_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f]/;
 
 /** Path traversal sequences */
