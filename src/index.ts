@@ -628,6 +628,8 @@ Examples:
   domani email archive hi@myapp.dev --message-ids m1,m2
   domani email send --from hi@myapp.dev --to bob@x.com --subject "Hello" --text "Hi Bob"
   domani email send --from hi@myapp.dev --to bob@x.com --subject "Hi" --text "..." --send-at 2026-09-03T09:00:00Z
+  domani email send --from hi@myapp.dev --to bob@x.com --text "Sure" --in-reply-to "<msg@x.com>"  # quotes the original by default
+  domani email send --from hi@myapp.dev --to bob@x.com --text "Sure" --in-reply-to "<msg@x.com>" --no-quote
   domani email escalate hi@myapp.dev --message-id MSG --reason "refund over $500"
   domani email remind hi@myapp.dev --message-id MSG --at 2026-09-03T09:00:00Z --note "chase the invoice"
   domani email contacts --q acme                    # address book, auto-fed by traffic
@@ -675,6 +677,7 @@ Examples:
   .option("--set <text>", "Tone notes to set on the mailbox (for tone)")
   .option("--in-reply-to <message-id>", "Message-ID of email being replied to (for threading)")
   .option("--references <message-ids>", "Space-separated Message-ID chain (for threading)")
+  .option("--no-quote", "With --in-reply-to, skip quoting the original message under the reply (on by default, in the local locale and time zone)")
   .option("--url <url>", "Webhook URL (for webhook)")
   .option("--events <list>", "Comma-separated webhook events: email.received plus delivery verdicts on outbound mail (email.delivered, email.bounced, email.failed, email.suppressed, email.complained, email.delayed); omit to keep the current subscription")
   .option("--authorization-env <name>", "Read the webhook Authorization value from this environment variable")
@@ -968,6 +971,7 @@ program
   .option("--body <t>", "Email body text (alias for --text)")
   .option("--in-reply-to <message-id>", "Message-ID of email being replied to")
   .option("--references <message-ids>", "Space-separated Message-ID chain")
+  .option("--no-quote", "With --in-reply-to, skip quoting the original message under the reply (on by default)")
   .option("--domain <domain>", "Domain name")
   .option("--slug <slug>", "Mailbox slug")
   .option("--json", "Output as JSON")

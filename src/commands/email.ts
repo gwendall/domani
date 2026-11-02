@@ -106,6 +106,8 @@ interface EmailOptions {
   name?: string;
   notes?: string;
   set?: string;
+  /** Quote the original under a reply (for send); default true, --no-quote opts out. */
+  quote?: boolean;
 }
 
 function recordCells(r: DnsRecord): string[] {
@@ -921,6 +923,40 @@ async function deleteMailboxCli(options: EmailOptions): Promise<void> {
 
 // ── Send email ────────────────────────────────────
 
+/** The system's own locale and time zone, as the reply quote's default. */
+export function systemLocale(): { locale: string; timeZone: string } {
+  const resolved = Intl.DateTimeFormat().resolvedOptions();
+  return { locale: resolved.locale, timeZone: resolved.timeZone };
+}
+
+/**
+ * The POST .../send body for `domani email send`. A reply (--in-reply-to)
+ * quotes the original underneath it by default, in the local machine's
+ * locale and time zone, the way every normal mail client keeps the
+ * conversation visible; --no-quote opts out. Quoting is never sent without
+ * --in-reply-to - there is nothing for the server to quote.
+ */
+export function buildSendBody(options: EmailOptions): Record<string, unknown> {
+  // Comma-separated to/cc/bcc go over the wire as arrays (see parseRecipients).
+  const body: Record<string, unknown> = { to: recipientField(parseRecipients(options.to)) };
+  const cc = recipientField(parseRecipients(options.cc));
+  const bcc = recipientField(parseRecipients(options.bcc));
+  if (cc) body.cc = cc;
+  if (bcc) body.bcc = bcc;
+  if (options.subject) body.subject = options.subject;
+  if (options.text) body.text = options.text;
+  if (options.inReplyTo) {
+    body.in_reply_to = options.inReplyTo;
+    if (options.quote !== false) {
+      const { locale, timeZone } = systemLocale();
+      body.quote_original = { locale, time_zone: timeZone };
+    }
+  }
+  if (options.references) body.references = options.references;
+  if (options.sendAt) body.send_at = options.sendAt;
+  return body;
+}
+
 async function sendEmailCli(options: EmailOptions): Promise<void> {
   const domain = await requireDomain(options);
   if (!options.slug) {
@@ -941,17 +977,7 @@ async function sendEmailCli(options: EmailOptions): Promise<void> {
   const s = createSpinner(!options.json);
   s.start(`Sending from ${options.slug}@${domain}`);
 
-  // Comma-separated to/cc/bcc go over the wire as arrays (see parseRecipients).
-  const body: Record<string, unknown> = { to: recipientField(parseRecipients(options.to)) };
-  const cc = recipientField(parseRecipients(options.cc));
-  const bcc = recipientField(parseRecipients(options.bcc));
-  if (cc) body.cc = cc;
-  if (bcc) body.bcc = bcc;
-  if (options.subject) body.subject = options.subject;
-  if (options.text) body.text = options.text;
-  if (options.inReplyTo) body.in_reply_to = options.inReplyTo;
-  if (options.references) body.references = options.references;
-  if (options.sendAt) body.send_at = options.sendAt;
+  const body = buildSendBody(options);
 
   const sendAddress = encodeURIComponent(`${options.slug}@${domain}`);
   const res = await apiRequest(
