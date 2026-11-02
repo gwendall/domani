@@ -152,6 +152,9 @@ domani status <domain>            Health check (DNS, SSL, email, expiry)
 domani tlds                       List all TLDs with pricing (--sort, --max-price)
 domani whois <domain>             WHOIS/RDAP lookup
 domani deals [id]                 Marketplace deals (--role, --status, --limit, --cursor) or one deal
+domani follow <domain>            Follow a taken domain for free: an alert at each step until it drops
+domani unfollow <domain>          Stop following a domain
+domani watchlist                  The domains you follow, with where each one stands
 ```
 
 ### Email

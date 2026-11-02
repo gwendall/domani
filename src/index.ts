@@ -40,6 +40,7 @@ import { webhooks } from "./commands/webhooks.js";
 import { sell } from "./commands/sell.js";
 import { deals } from "./commands/deals.js";
 import { broker } from "./commands/broker.js";
+import { follow, unfollow, watchlist } from "./commands/watchlist.js";
 import { notifications } from "./commands/notifications.js";
 import { invoices } from "./commands/invoices.js";
 import { billing } from "./commands/billing.js";
@@ -939,6 +940,42 @@ Examples:
   domani broker status brq_abc123
   domani broker cancel brq_abc123`)
   .action((action, arg, options) => broker(action, arg, options));
+
+program
+  .command("follow <domain>")
+  .description("Follow a taken domain for free: an alert in the app and by email at each step until it drops")
+  .option("--dry-run", "Show what would happen without executing")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Steps that raise an alert: expiring within 30 days, expired, redemption,
+pending delete (drops in about 5 days), available again, listed for sale.
+The step the name is at when you follow it raises none. Up to 50 names.
+
+Examples:
+  domani follow taken.com                        # follow it
+  domani follow taken.com --json                 # where it stands, as JSON`)
+  .action(follow);
+
+program
+  .command("unfollow <domain>")
+  .description("Stop following a domain (a backorder on it is not affected)")
+  .option("--dry-run", "Show what would happen without executing")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .action(unfollow);
+
+program
+  .command("watchlist")
+  .alias("following")
+  .description("List the domains you follow, with where each one stands")
+  .option("--json", "Output as JSON")
+  .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
+  .addHelpText("after", `
+Examples:
+  domani watchlist                               # the names you follow
+  domani watchlist --json --fields watches       # machine-readable output`)
+  .action(watchlist);
 
 program
   .command("notifications")
