@@ -25,10 +25,10 @@ describe("buildSendBody - quote_original", () => {
     assert.deepEqual(body.quote_original, { locale: resolved.locale, time_zone: resolved.timeZone });
   });
 
-  it("is omitted with --no-quote even when --in-reply-to is given", () => {
+  it("explicitly disables the server's default with --no-quote", () => {
     const body = buildSendBody({ ...base, inReplyTo: "<orig@example.com>", quote: false });
     assert.equal(body.in_reply_to, "<orig@example.com>");
-    assert.equal(body.quote_original, undefined);
+    assert.equal(body.quote_original, false);
   });
 
   it("stays on alongside --send-at (a scheduled reply)", () => {

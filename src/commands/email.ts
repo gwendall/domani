@@ -950,6 +950,8 @@ export function buildSendBody(options: EmailOptions): Record<string, unknown> {
     if (options.quote !== false) {
       const { locale, timeZone } = systemLocale();
       body.quote_original = { locale, time_zone: timeZone };
+    } else {
+      body.quote_original = false;
     }
   }
   if (options.references) body.references = options.references;
