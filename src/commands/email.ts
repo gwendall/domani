@@ -25,7 +25,7 @@ import { readFileSync } from "node:fs";
 import { resolveWebhookHeadersFromEnv, webhookHeaderNames } from "../webhook-headers.js";
 
 /** Known subcommands (used for legacy detection) */
-const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes", "coordination", "presence", "release-presence", "escalate", "remind", "contacts", "contact-add", "contact-remove", "tone", "search", "threads", "thread", "label", "facts", "extract"];
+const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "drafts", "draft", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes", "coordination", "presence", "release-presence", "escalate", "remind", "contacts", "contact-add", "contact-remove", "tone", "search", "threads", "thread", "label", "facts", "extract"];
 
 /** Provider display names */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -202,6 +202,10 @@ export async function email(
       return messagesCli(options);
     case "folders":
       return foldersCli(options);
+    case "drafts":
+      return draftsCli(options);
+    case "draft":
+      return draftCli(arg2, options);
     case "archive":
     case "trash":
     case "restore":
@@ -454,6 +458,32 @@ async function threadCli(arg2: string | undefined, options: EmailOptions): Promi
   ${pc.bold(message.direction === "out" ? "→" : "←")} ${message.from}  ${pc.dim(message.created_at.slice(0, 16))}${message.labels?.length ? `  ${pc.dim(`[${message.labels.join(", ")}]`)}` : ""}  ${pc.dim(message.id)}`);
     if (message.text) console.log(`    ${message.text.replace(/\s+/g, " ").trim().slice(0, 300)}`);
   }
+}
+
+/**
+ * The draft ID for `email draft`: the positional arg2, unless it looks like
+ * an email address (a bare "user@domain" belongs to --from, not here).
+ */
+export function resolveDraftIdArg(arg2: string | undefined): string | undefined {
+  return arg2 && !arg2.includes("@") ? arg2 : undefined;
+}
+
+/** One draft being composed to send from this mailbox, scoped by its `from` address. */
+async function draftCli(arg2: string | undefined, options: EmailOptions): Promise<void> {
+  const draftId = resolveDraftIdArg(arg2);
+  const { address } = requireAddress(options, "Usage: domani email draft <draft_id> --from hi@myapp.dev");
+  if (!draftId) fail("Draft ID required", { hint: "Usage: domani email draft <draft_id> --from hi@myapp.dev", code: "validation_error", json: options.json, fields: options.fields });
+  const response = await apiRequest(`/api/emails/${encodeURIComponent(address)}/drafts/${encodeURIComponent(draftId!)}`);
+  const data = await response.json();
+  if (!response.ok) fail(data.error || data.message, { hint: data.hint, status: response.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading(data.subject || "(no subject)");
+  row("From", data.from || "-");
+  row("To", (data.to || []).map((r: { address: string }) => r.address).join(", ") || "-");
+  if (data.cc?.length) row("Cc", data.cc.map((r: { address: string }) => r.address).join(", "));
+  row("Updated", data.updated_at.slice(0, 16));
+  if (data.text) console.log(`
+  ${data.text.replace(/\s+/g, " ").trim().slice(0, 500)}`);
 }
 
 /** Add, remove or replace the labels of messages (AIP-14). */
@@ -1272,6 +1302,27 @@ async function foldersCli(options: EmailOptions): Promise<void> {
   heading(`Folders for ${options.slug}@${domain}`);
   for (const folder of data.folders || []) row(folder.id, `${folder.total} total, ${folder.unread} unread`);
   for (const view of data.views || []) row(view.id, `${view.total} total, ${view.unread} unread`);
+}
+
+/** Messages being composed to send from this mailbox, newest edit first. */
+async function draftsCli(options: EmailOptions): Promise<void> {
+  const domain = await requireDomain(options);
+  if (!options.slug) fail("Slug required", { hint: "Usage: domani email drafts hello@example.com", code: "validation_error", json: options.json, fields: options.fields });
+  const address = encodeURIComponent(`${options.slug}@${domain}`);
+  const res = await apiRequest(`/api/emails/${address}/drafts`);
+  const data = await res.json();
+  if (!res.ok) fail(data.error || data.message, { hint: data.hint, status: res.status, json: options.json, fields: options.fields });
+  if (options.json) return jsonOut(data, options.fields);
+  heading(`Drafts from ${options.slug}@${domain}`);
+  const drafts = (data.drafts || []) as Array<{ id: string; to: Array<{ address: string }>; subject: string | null; text: string | null; updated_at: string }>;
+  if (!drafts.length) { console.log(`  ${pc.dim("No drafts.")}`); return; }
+  for (const d of drafts) {
+    const to = d.to.map((r) => r.address).join(", ");
+    const rawSubject = d.subject || "(no subject)";
+    const preview = (d.text || "").replace(/\s+/g, " ").trim();
+    const snippet = preview.length > 60 ? preview.slice(0, 60) + "…" : preview;
+    console.log(`  ${pc.dim(d.updated_at.slice(0, 16))}  ${to.padEnd(30)} ${rawSubject}${snippet ? pc.dim(" - " + snippet) : ""}  ${pc.dim(d.id)}`);
+  }
 }
 
 async function lifecycleActionCli(action: string, options: EmailOptions): Promise<void> {

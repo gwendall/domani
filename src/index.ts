@@ -626,6 +626,8 @@ Examples:
   domani email create --domain myapp.dev --slug hi  # create hi@myapp.dev
   domani email inbox --from hi@myapp.dev            # view inbox
   domani email folders hi@myapp.dev                 # folder counts
+  domani email drafts hi@myapp.dev                  # messages being composed from this address
+  domani email draft DRAFT_ID --from hi@myapp.dev   # one draft
   domani email archive hi@myapp.dev --message-ids m1,m2
   domani email send --from hi@myapp.dev --to bob@x.com --subject "Hello" --text "Hi Bob"
   domani email send --from hi@myapp.dev --to bob@x.com --subject "Hi" --text "..." --send-at 2026-09-03T09:00:00Z
