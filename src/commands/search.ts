@@ -29,9 +29,20 @@ interface SearchResult {
   registry_status?: "premium" | "reserved";
   /** Premium only: the registry's first-year price in USD, when known */
   registry_price?: number;
-  /** Why the server does not offer the name (alt_root and registry_status results) */
+  /** Why the server does not offer the name (alt_root, not sold and registry_status results) */
   reason?: string;
 }
+
+/**
+ * A name under an extension Domani does not sell (gwendall-test.cn). The
+ * server does not check it: it answers `available: false`, `price` 0 and a
+ * `reason`, so it is never shown as available or taken.
+ */
+export function notSold(r: Pick<SearchResult, "available" | "error" | "registry_status" | "price" | "reason" | "tld_kind">): boolean {
+  return !r.available && !r.error && !r.registry_status && r.price === 0 && !!r.reason && !notInPublicDns(r);
+}
+
+const NOT_SOLD_LABEL = "not sold on Domani";
 
 /**
  * A name under a TLD outside the IANA root zone (#651). The server does not
@@ -219,7 +230,7 @@ async function liveSelectSearch(
     for (let i = 0; i < displayItems.length; i++) {
       const item = displayItems[i];
       if (showTaken) {
-        lines.push(`${pc.dim("│")}  ${pc.dim("✕")} ${pc.dim(item.domain.padEnd(maxLen))}  ${pc.dim(heldByRegistry(item) ? registryLabel(item) : "taken")}`);
+        lines.push(`${pc.dim("│")}  ${pc.dim("✕")} ${pc.dim(item.domain.padEnd(maxLen))}  ${pc.dim(heldByRegistry(item) ? registryLabel(item) : notSold(item) ? NOT_SOLD_LABEL : "taken")}`);
       } else {
         const sel = i === selectedIndex;
         const dot = sel ? pc.green("●") : pc.dim("○");
@@ -330,8 +341,8 @@ async function liveSelectSearch(
               render();
             }
           }
-          // A name the registry holds back cannot be bought: it is never selectable.
-          if (currentEvent === "result" && (data.available || data.for_sale || showAll) && !heldByRegistry(data)) {
+          // A name the registry holds back, or under an extension not sold, cannot be bought: it is never selectable.
+          if (currentEvent === "result" && (data.available || data.for_sale || showAll) && !heldByRegistry(data) && !notSold(data)) {
             if (batchIndex === 0) {
               const insertAt = items.findIndex((i) => i.price > data.price);
               if (insertAt === -1) {
@@ -485,6 +496,11 @@ export async function search(
       blank();
       console.log(`  ${notInPublicDnsReason(data)}`);
       blank();
+    } else if (notSold(data)) {
+      s.stop(`${S.warning} ${fmt.domain(data.domain)} ${S.dot} ${pc.yellow(NOT_SOLD_LABEL)}`);
+      blank();
+      console.log(`  ${data.reason}`);
+      blank();
     } else if (heldByRegistry(data)) {
       s.stop(`${S.warning} ${fmt.domain(data.domain)} ${S.dot} ${pc.yellow(registryLabel(data))}`);
       blank();
@@ -569,13 +585,16 @@ export async function search(
     const col = Math.max(...mergedTlds.map((t) => `${currentName}.${t}`.length)) + 2;
     const available = allResults.filter((r) => r.available);
     const notPublic = allResults.filter(notInPublicDns);
+    const unsold = allResults.filter(notSold);
     const held = allResults.filter(heldByRegistry);
-    const taken = allResults.filter((r) => !r.available && !r.error && !notInPublicDns(r) && !heldByRegistry(r));
+    const taken = allResults.filter((r) => !r.available && !r.error && !notInPublicDns(r) && !notSold(r) && !heldByRegistry(r));
 
     const listed = allResults.filter((r) => !r.available && r.for_sale);
-    for (const r of [...available, ...listed, ...held, ...taken.filter((r) => !r.for_sale), ...notPublic]) {
+    for (const r of [...available, ...listed, ...held, ...taken.filter((r) => !r.for_sale), ...unsold, ...notPublic]) {
       if (notInPublicDns(r)) {
         console.log(`  ${pc.yellow("!")} ${pc.dim(r.domain.padEnd(col))} ${pc.yellow("not in public DNS")}`);
+      } else if (notSold(r)) {
+        console.log(`  ${pc.yellow("!")} ${pc.dim(r.domain.padEnd(col))} ${pc.yellow(NOT_SOLD_LABEL)}`);
       } else if (heldByRegistry(r)) {
         console.log(`  ${pc.yellow("!")} ${pc.dim(r.domain.padEnd(col))} ${pc.yellow(registryLabel(r))}`);
       } else if (r.available) {
@@ -587,9 +606,10 @@ export async function search(
       }
     }
 
-    if (notPublic.length > 0 || held.length > 0) {
+    if (notPublic.length > 0 || unsold.length > 0 || held.length > 0) {
       blank();
       for (const r of held) console.log(`  ${pc.dim(registryReason(r))}`);
+      for (const r of unsold) console.log(`  ${pc.dim(r.reason ?? "")}`);
       for (const r of notPublic) console.log(`  ${pc.dim(notInPublicDnsReason(r))}`);
     }
 
@@ -727,6 +747,9 @@ export async function search(
     if (notInPublicDns(r)) {
       console.log(`  ${S.warning} ${pc.dim(r.domain.padEnd(38))} ${pc.yellow("not in public DNS")}`);
       console.log(`    ${pc.dim(notInPublicDnsReason(r))}`);
+    } else if (notSold(r)) {
+      console.log(`  ${S.warning} ${pc.dim(r.domain.padEnd(38))} ${pc.yellow(NOT_SOLD_LABEL)}`);
+      console.log(`    ${pc.dim(r.reason ?? "")}`);
     } else if (heldByRegistry(r)) {
       console.log(`  ${S.warning} ${pc.dim(r.domain.padEnd(38))} ${pc.yellow(registryLabel(r))}`);
       console.log(`    ${pc.dim(registryReason(r))}`);
@@ -770,10 +793,10 @@ export async function search(
           checked.add(data.domain);
           received = checked.size;
           const was = dropResult(results, data.domain);
-          // A name the caller asked for under a TLD outside the root zone, or one
-          // the registry holds back, is always shown, with the reason, so it
-          // never vanishes silently (#651).
-          if (data.available || data.for_sale || showAll || notInPublicDns(data) || heldByRegistry(data)) {
+          // A name the caller asked for under a TLD outside the root zone or an
+          // extension not sold, or one the registry holds back, is always shown,
+          // with the reason, so it never vanishes silently (#651).
+          if (data.available || data.for_sale || showAll || notInPublicDns(data) || notSold(data) || heldByRegistry(data)) {
             results.splice(was === -1 ? results.length : was, 0, data);
           }
           if (!options.json) updateProgress();
