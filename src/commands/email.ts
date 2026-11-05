@@ -85,6 +85,7 @@ interface EmailOptions {
   since?: string;
   until?: string;
   label?: string;
+  kind?: string;
   add?: string;
   remove?: string;
   schema?: string;
@@ -1222,7 +1223,7 @@ async function toneCli(options: EmailOptions): Promise<void> {
 // ── List messages ─────────────────────────────────
 
 /** Query string for `email inbox`: filters, the time window, and the page cursor. */
-export function inboxQuery(options: Pick<EmailOptions, "direction" | "folder" | "view" | "limit" | "cursor" | "since" | "until" | "label">): string {
+export function inboxQuery(options: Pick<EmailOptions, "direction" | "folder" | "view" | "limit" | "cursor" | "since" | "until" | "label" | "kind">): string {
   const params = new URLSearchParams();
   if (options.direction) params.set("direction", options.direction);
   if (options.folder) params.set("folder", options.folder);
@@ -1231,6 +1232,7 @@ export function inboxQuery(options: Pick<EmailOptions, "direction" | "folder" | 
   if (options.since) params.set("since", options.since);
   if (options.until) params.set("until", options.until);
   if (options.label) params.set("label", options.label);
+  if (options.kind) params.set("kind", options.kind);
   if (options.cursor) params.set("cursor", options.cursor);
   const qs = params.toString();
   return qs ? `?${qs}` : "";
@@ -1239,7 +1241,7 @@ export function inboxQuery(options: Pick<EmailOptions, "direction" | "folder" | 
 async function messagesCli(options: EmailOptions): Promise<void> {
   const domain = await requireDomain(options);
   if (!options.slug) {
-    fail("Slug required", { hint: "Usage: domani email inbox hello@example.com [--direction in|out] [--limit 20] [--cursor <next_cursor>]", code: "validation_error", json: options.json, fields: options.fields });
+    fail("Slug required", { hint: "Usage: domani email inbox hello@example.com [--direction in|out] [--kind person,update] [--limit 20] [--cursor <next_cursor>]", code: "validation_error", json: options.json, fields: options.fields });
   }
 
   const qs = inboxQuery(options);
@@ -1274,8 +1276,8 @@ async function messagesCli(options: EmailOptions): Promise<void> {
   const plural = msgs.length > 1 ? "s" : "";
   s.stop(`${S.success} ${pc.cyan(`${options.slug}@${domain}`)} ${pc.dim("· " + msgs.length + " message" + plural)}`);
 
-  for (const m of msgs as { direction: string; from: string; to: string; subject: string | null; text: string | null; created_at: string }[]) {
-    const dir = m.direction === "in" ? pc.green("in ") : pc.dim("out");
+  for (const m of msgs as { direction: string; from: string; to: string; subject: string | null; text: string | null; created_at: string; kind?: string | null }[]) {
+    const dir = m.direction === "in" ? `${pc.green("in ")}${m.kind ? ` ${pc.dim(m.kind.padEnd(10))}` : ""}` : pc.dim("out");
     const contact = m.direction === "in" ? m.from : m.to;
     const rawSubject = m.subject || "(no subject)";
     const date = pc.dim(new Date(m.created_at).toLocaleString());

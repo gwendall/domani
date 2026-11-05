@@ -625,6 +625,7 @@ Examples:
   domani email list                                 # list all mailboxes
   domani email create --domain myapp.dev --slug hi  # create hi@myapp.dev
   domani email inbox --from hi@myapp.dev            # view inbox
+  domani email inbox --from hi@myapp.dev --kind person  # mail people wrote
   domani email folders hi@myapp.dev                 # folder counts
   domani email drafts hi@myapp.dev                  # messages being composed from this address
   domani email draft DRAFT_ID --from hi@myapp.dev   # one draft
@@ -655,6 +656,7 @@ Examples:
   .option("--since <iso>", "Only mail or threads after this time (for search, threads, inbox)")
   .option("--until <iso>", "Only mail before this time (for search, inbox)")
   .option("--label <labels>", "Comma-separated labels, any of (for search, threads, inbox)")
+  .option("--kind <kinds>", "Comma-separated mail kinds, any of: person, update, newsletter, promotion, code, report (for inbox)")
   .option("--add <labels>", "Labels to add (for label)")
   .option("--remove <labels>", "Labels to remove (for label; --set <labels> replaces every label)")
   .option("--schema <json>", "JSON schema of the fields to extract, inline or @file (for extract)")

@@ -30,4 +30,9 @@ describe("domani email inbox query (#649)", () => {
   it("omits the query string when nothing is set", () => {
     assert.equal(inboxQuery({}), "");
   });
+
+  it("sends the mail kinds to filter on", () => {
+    const params = new URLSearchParams(inboxQuery({ kind: "person,update" }).slice(1));
+    assert.equal(params.get("kind"), "person,update");
+  });
 });
