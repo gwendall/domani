@@ -24,9 +24,10 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolveWebhookHeadersFromEnv, webhookHeaderNames } from "../webhook-headers.js";
 import { notSpamCli, senderRuleAddCli, senderRuleRemoveCli, senderRulesCli, spamCli } from "./email-spam.js";
+import { decisionsCli } from "./email-decisions.js";
 
 /** Known subcommands (used for legacy detection) */
-const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "drafts", "draft", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes", "coordination", "presence", "release-presence", "escalate", "remind", "contacts", "contact-add", "contact-remove", "tone", "search", "threads", "thread", "label", "facts", "extract", "spam", "not-spam", "sender-rules", "sender-rule-add", "sender-rule-remove"];
+const SUBCOMMANDS = ["setup", "status", "remove", "list", "create", "delete", "send", "inbox", "folders", "drafts", "draft", "archive", "trash", "restore", "read", "unread", "star", "unstar", "webhook", "forward", "check", "connect", "work", "triage", "notes", "note", "activity", "changes", "coordination", "presence", "release-presence", "escalate", "remind", "contacts", "contact-add", "contact-remove", "tone", "search", "threads", "thread", "label", "facts", "extract", "spam", "not-spam", "decisions", "sender-rules", "sender-rule-add", "sender-rule-remove"];
 
 /** Provider display names */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -265,10 +266,9 @@ export async function email(
       return factsCli(arg2, options);
     case "extract":
       return extractCli(arg2, options);
-    case "spam":
-      return spamCli(arg2, options);
-    case "not-spam":
-      return notSpamCli(arg2, options);
+    case "spam": return spamCli(arg2, options);
+    case "not-spam": return notSpamCli(arg2, options);
+    case "decisions": return decisionsCli(arg2, options);
     case "sender-rules":
       return senderRulesCli(options);
     case "sender-rule-add":
@@ -299,7 +299,7 @@ export async function email(
       return connectProvider(options.domain || await pickDomain(), arg2 || undefined, !!options.json, options.fields);
     default:
       fail(`Unknown action: ${action}`, {
-        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, spam, not-spam, sender-rules, sender-rule-add, sender-rule-remove, create, delete, send, forward, webhook, webhook-test, work, triage, notes, note, activity, changes, coordination, presence, release-presence, setup, status, check, connect",
+        hint: "Actions: list, inbox, folders, archive, trash, restore, read, unread, star, unstar, spam, not-spam, decisions, sender-rules, sender-rule-add, sender-rule-remove, create, delete, send, forward, webhook, webhook-test, work, triage, notes, note, activity, changes, coordination, presence, release-presence, setup, status, check, connect",
         code: "validation_error",
         json: options.json,
         fields: options.fields,

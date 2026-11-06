@@ -632,6 +632,7 @@ Examples:
   domani email archive hi@myapp.dev --message-ids m1,m2
   domani email spam MSG --from hi@myapp.dev         # to Spam, block the sender account-wide, offer domain and campaign
   domani email not-spam MSG --from hi@myapp.dev     # back to the Inbox, allow the sender account-wide
+  domani email decisions MSG --from hi@myapp.dev    # why it is in its folder and has its kind, decision by decision
   domani email sender-rules                         # learned rules: blocks and allows, who and when
   domani email sender-rule-add --action block --match domain --value secure.net
   domani email sender-rule-add --action block --match campaign --from hi@myapp.dev --message-id MSG
@@ -677,7 +678,7 @@ Examples:
   .option("--text <t>", "Email body text (for send)")
   .option("--body <t>", "Email body text (alias for --text)")
   .option("--send-at <iso>", "Schedule the send (ISO 8601, 30s to 30 days out); trash the message to cancel")
-  .option("--message-id <id>", "Message ID (for escalate, remind, spam, not-spam, sender-rule-add)")
+  .option("--message-id <id>", "Message ID (for escalate, remind, spam, not-spam, decisions, sender-rule-add)")
   .option("--reason <text>", "Why the human is needed (for escalate)")
   .option("--at <iso>", "Reminder time, ISO 8601 (for remind)")
   .option("--clear", "Clear the escalation flag, reminder, or tone notes")
