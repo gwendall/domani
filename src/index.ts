@@ -630,6 +630,12 @@ Examples:
   domani email drafts hi@myapp.dev                  # messages being composed from this address
   domani email draft DRAFT_ID --from hi@myapp.dev   # one draft
   domani email archive hi@myapp.dev --message-ids m1,m2
+  domani email spam MSG --from hi@myapp.dev         # to Spam, block the sender account-wide, offer domain and campaign
+  domani email not-spam MSG --from hi@myapp.dev     # back to the Inbox, allow the sender account-wide
+  domani email sender-rules                         # learned rules: blocks and allows, who and when
+  domani email sender-rule-add --action block --match domain --value secure.net
+  domani email sender-rule-add --action block --match campaign --from hi@myapp.dev --message-id MSG
+  domani email sender-rule-remove RULE_ID           # remove a rule and put back what it moved
   domani email send --from hi@myapp.dev --to bob@x.com --subject "Hello" --text "Hi Bob"
   domani email send --from hi@myapp.dev --to bob@x.com --subject "Hi" --text "..." --send-at 2026-09-03T09:00:00Z
   domani email send --from hi@myapp.dev --to bob@x.com --text "Sure" --in-reply-to "<msg@x.com>"  # quotes the original by default
@@ -671,7 +677,7 @@ Examples:
   .option("--text <t>", "Email body text (for send)")
   .option("--body <t>", "Email body text (alias for --text)")
   .option("--send-at <iso>", "Schedule the send (ISO 8601, 30s to 30 days out); trash the message to cancel")
-  .option("--message-id <id>", "Message ID (for escalate/remind)")
+  .option("--message-id <id>", "Message ID (for escalate, remind, spam, not-spam, sender-rule-add)")
   .option("--reason <text>", "Why the human is needed (for escalate)")
   .option("--at <iso>", "Reminder time, ISO 8601 (for remind)")
   .option("--clear", "Clear the escalation flag, reminder, or tone notes")
@@ -705,6 +711,11 @@ Examples:
   .option("--note <text>", "Private note text")
   .option("--if-version <number>", "Conversation version for compare-and-set updates")
   .option("--idempotency-key <key>", "Stable retry key for mailbox lifecycle actions")
+  .option("--confirm", "Block a sender you know, or a shared domain (for spam, sender-rule-add)")
+  .option("--action <action>", "Sender rule: block or allow (for sender-rules, sender-rule-add)")
+  .option("--match <match>", "Sender rule match: address, domain or campaign (for sender-rule-add)")
+  .option("--value <value>", "Sender rule address or domain (for sender-rule-add)")
+  .option("--keep-moved", "Leave the mail a removed rule moved where it is (for sender-rule-remove)")
   .option("--client-id <id>", "Stable opaque ID for this app installation or agent process")
   .option("--lease-id <id>", "Compose lease returned by a presence heartbeat")
   .option("--mode <mode>", "Presence mode: viewing or composing")
