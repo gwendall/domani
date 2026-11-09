@@ -100,8 +100,8 @@ describe("commands state the renewal beside the first-year price", () => {
     await buy(["whacked.gg", "whacked.com"], { json: true, dryRun: true });
     const out = JSON.parse(printed.at(-1) ?? "{}");
     assert.deepEqual(out.domains, [
-      { domain: "whacked.gg", price: 69, renewal_price: 107 },
-      { domain: "whacked.com", price: 14.5, renewal_price: 14.5 },
+      { domain: "whacked.gg", price: 69, renewal_price: 107, years: 1, total_price: 69 },
+      { domain: "whacked.com", price: 14.5, renewal_price: 14.5, years: 1, total_price: 14.5 },
     ]);
   });
 });

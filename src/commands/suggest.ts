@@ -4,9 +4,9 @@ import pc from "picocolors";
 import { S, fmt, blank, hintCommand, createSpinner, jsonOut, fail, isTTY } from "../ui.js";
 import { requireValidTlds } from "../validate.js";
 import { dropResult, heldByRegistry, registryLabel } from "./search.js";
-import { perYear } from "../per-year.js";
+import { termPrice, type PriceQuote } from "../term.js";
 
-interface SuggestedDomain {
+interface SuggestedDomain extends PriceQuote {
   domain: string;
   available: boolean;
   price: number;
@@ -156,7 +156,7 @@ export async function suggest(
             // Print available first
             for (const item of available) {
               const reasonHint = item.reason ? `  ${pc.dim(item.reason)}` : "";
-              console.log(`  ${S.success} ${fmt.domain(item.domain).padEnd(37)} ${pc.green(perYear(item.price, item.renewal_price))}${reasonHint}`);
+              console.log(`  ${S.success} ${fmt.domain(item.domain).padEnd(37)} ${pc.green(termPrice(item))}${reasonHint}`);
             }
             // Then taken
             for (const item of taken) {

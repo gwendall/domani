@@ -321,7 +321,8 @@ Examples:
 program
   .command("buy [domains...]")
   .description("Purchase one or more domains")
-  .option("--max-price <usd>", "Ceiling for the total charge (default: the price shown)")
+  .option("--years <n>", "Registration years, 1-10 (default: each TLD's minimum, 1 for most, 2 for .ai)")
+  .option("--max-price <usd>", "Ceiling for the total charge of the term (default: the total shown)")
   .option("--yes", "Skip confirmation prompt")
   .option("--dry-run", "Show what would happen without executing")
   .option("--json", "Output as JSON")
@@ -330,7 +331,7 @@ program
 Examples:
   domani buy myapp.dev                          # buy one domain
   domani buy myapp.dev myapp.com myapp.ai       # buy multiple
-  domani buy myapp.dev --dry-run                # preview without buying
+  domani buy myapp.ai --dry-run --years 3       # preview a 3-year term (.ai: 2 years at least)
   domani buy myapp.dev --yes                    # skip confirmation
   domani buy myapp.dev --yes --max-price 15     # never pay more than $15
   domani buy myapp.dev --json                   # machine-readable output`)

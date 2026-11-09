@@ -142,7 +142,7 @@ domani schema buy --json
 ```
 domani search <name> [tlds...]    Check availability across TLDs (--expand for 30+)
 domani suggest <prompt>           AI-powered domain suggestions (--style, --lang, --tlds)
-domani buy <domains...>           Purchase one or more domains
+domani buy <domains...>           Purchase one or more domains (--years 1-10, default each TLD's minimum: 2 for .ai)
 domani adopt <domain>             Inspect and plan a safe connection or transfer
 domani transfer <domain>          Transfer registration, preserving current nameservers
 domani renew <domain>             Renew a domain (--years 1-10)

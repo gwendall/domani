@@ -3,7 +3,7 @@ import { text, isCancel } from "@clack/prompts";
 import pc from "picocolors";
 import { S, fmt, blank, hintCommand, createSpinner, jsonOut, fail, isTTY } from "../ui.js";
 import { requireValidDomain, requireValidTlds } from "../validate.js";
-import { perYear } from "../per-year.js";
+import { quoteOf, termPrice, type PriceQuote } from "../term.js";
 
 interface ForSaleInfo {
   price: number;
@@ -13,7 +13,7 @@ interface ForSaleInfo {
   url?: string;
 }
 
-interface SearchResult {
+interface SearchResult extends PriceQuote {
   domain: string;
   available: boolean;
   price: number;
@@ -238,7 +238,7 @@ async function liveSelectSearch(
         const domain = sel ? pc.bold(pc.cyan(padded)) : padded;
         const price = item.for_sale
           ? pc.cyan(`$${item.for_sale.price} (for sale)`)
-          : pc.dim(perYear(item.price, item.renewal_price));
+          : pc.dim(termPrice(item));
         lines.push(`${pc.dim("│")}  ${dot} ${domain}  ${price}`);
       }
     }
@@ -507,10 +507,10 @@ export async function search(
       console.log(`  ${registryReason(data)}`);
       blank();
     } else if (data.available) {
-      s.stop(`${S.success} ${fmt.domain(data.domain)} ${S.dot} available ${S.dot} ${pc.green(perYear(data.price, data.renewal_price))}`);
+      s.stop(`${S.success} ${fmt.domain(data.domain)} ${S.dot} available ${S.dot} ${pc.green(termPrice(data))}`);
       if (isTTY && !options.json) {
         const { buy } = await import("./buy.js");
-        await buy([data.domain], { preChecked: { price: data.price, currency: data.currency, renewal_price: data.renewal_price } });
+        await buy([data.domain], { preChecked: quoteOf(data) });
       } else {
         blank();
         hintCommand("Register it:", `domani buy ${data.domain}`);
@@ -598,7 +598,7 @@ export async function search(
       } else if (heldByRegistry(r)) {
         console.log(`  ${pc.yellow("!")} ${pc.dim(r.domain.padEnd(col))} ${pc.yellow(registryLabel(r))}`);
       } else if (r.available) {
-        console.log(`  ${pc.green("✓")} ${pc.bold(pc.white(r.domain.padEnd(col)))} ${pc.green(perYear(r.price, r.renewal_price))}`);
+        console.log(`  ${pc.green("✓")} ${pc.bold(pc.white(r.domain.padEnd(col)))} ${pc.green(termPrice(r))}`);
       } else if (r.for_sale) {
         console.log(`  ${pc.cyan("$")} ${pc.bold(pc.white(r.domain.padEnd(col)))} ${pc.cyan(fmt.price(r.for_sale.price))} ${pc.dim("(for sale)")}`);
       } else {
@@ -622,7 +622,7 @@ export async function search(
     const { buy } = await import("./buy.js");
 
     if (available.length === 1) {
-      await buy([available[0].domain], { preChecked: { price: available[0].price, currency: available[0].currency, renewal_price: available[0].renewal_price } });
+      await buy([available[0].domain], { preChecked: quoteOf(available[0]) });
       return;
     }
 
@@ -631,14 +631,14 @@ export async function search(
     const picked = await select({
       message: "Register one?",
       options: [
-        ...available.map((r) => ({ value: r.domain, label: fmt.domain(r.domain), hint: perYear(r.price, r.renewal_price) })),
+        ...available.map((r) => ({ value: r.domain, label: fmt.domain(r.domain), hint: termPrice(r) })),
         { value: "__skip__", label: "Skip" },
       ],
     });
     if (!selIsCancel(picked) && picked !== "__skip__") {
       blank();
       const chosenResult = available.find((r) => r.domain === picked);
-      await buy([picked as string], { preChecked: chosenResult ? { price: chosenResult.price, currency: chosenResult.currency, renewal_price: chosenResult.renewal_price } : undefined });
+      await buy([picked as string], { preChecked: chosenResult ? quoteOf(chosenResult) : undefined });
     } else {
       blank();
     }
@@ -677,7 +677,7 @@ export async function search(
       if (chosen) {
         blank();
         const { buy } = await import("./buy.js");
-        const preChecked = chosenResult ? { price: chosenResult.price, currency: chosenResult.currency, renewal_price: chosenResult.renewal_price } : undefined;
+        const preChecked = chosenResult ? quoteOf(chosenResult) : undefined;
         await buy([chosen], { preChecked });
         return;
       }
@@ -754,7 +754,7 @@ export async function search(
       console.log(`  ${S.warning} ${pc.dim(r.domain.padEnd(38))} ${pc.yellow(registryLabel(r))}`);
       console.log(`    ${pc.dim(registryReason(r))}`);
     } else if (r.available) {
-      console.log(`  ${S.success} ${fmt.domain(r.domain).padEnd(37)} ${pc.green(perYear(r.price, r.renewal_price))}`);
+      console.log(`  ${S.success} ${fmt.domain(r.domain).padEnd(37)} ${pc.green(termPrice(r))}`);
     } else if (r.for_sale) {
       console.log(`  ${S.info} ${fmt.domain(r.domain).padEnd(37)} ${pc.cyan(fmt.price(r.for_sale.price))} ${pc.dim("(for sale)")}`);
     } else if (r.error) {
