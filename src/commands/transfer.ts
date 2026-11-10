@@ -121,7 +121,7 @@ export async function transfer(
       eligible: true,
       price: check.options.transfer.price,
       currency: check.options.transfer.currency || "USD",
-      includes_renewal: true,
+      includes_renewal: check.options.transfer.includes_renewal !== false,
       preserves_nameservers: true,
       migrates_dns: false,
       nameservers: check.current.nameservers,
@@ -141,7 +141,7 @@ export async function transfer(
     blank();
     const price = check.options.transfer.price != null ? ` for ${fmt.price(check.options.transfer.price.toFixed(2))}` : "";
     const ok = await clackConfirm({
-      message: `Transfer ${pc.bold(domain)} to ${APP_DOMAIN}${price}${asAccount()}? Nameservers stay unchanged and 1 year is included.`,
+      message: `Transfer ${pc.bold(domain)} to ${APP_DOMAIN}${price}${asAccount()}? Nameservers stay unchanged and ${check.options.transfer.includes_renewal === false ? "no year is added: the domain keeps its expiry date" : "1 year is included"}.`,
     });
     if (!ok || typeof ok === "symbol") {
       console.log(`  ${pc.dim("Cancelled.")}`);

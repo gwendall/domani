@@ -6,6 +6,7 @@ import { actingAsLabel } from "../config.js";
 import { requireValidDomain } from "../validate.js";
 import { pickDomain } from "../prompt.js";
 import { acceptNewPrice, parseMaxPrice, priceToAccept, roundToCent } from "../max-price.js";
+import { parseYears, yearsLabel } from "../term.js";
 
 export async function renew(
   domain: string | undefined,
@@ -13,13 +14,11 @@ export async function renew(
 ): Promise<void> {
   if (!domain) domain = await pickDomain();
   requireValidDomain(domain, options);
-  const years = options.years ? parseInt(options.years, 10) : 1;
-
-  if (isNaN(years) || years < 1 || years > 10) {
+  const asked = parseYears(options.years);
+  if (asked === null) {
     fail("--years must be between 1 and 10", { code: "validation_error", json: options.json, fields: options.fields });
   }
   const requested = parseMaxPrice(options.maxPrice, options);
-  const term = `${years} year${years > 1 ? "s" : ""}`;
 
   const s = createSpinner(!options.json);
   s.start(`Checking ${fmt.domain(domain)}`);
@@ -30,10 +29,21 @@ export async function renew(
     fail(info.error, { hint: info.hint, status: infoRes.status, json: options.json, fields: options.fields });
   }
   const yearly = typeof info.renewal_price === "number" ? info.renewal_price : undefined;
+  // Without --years, the extension's minimum renewal (.ai: 2 years), as the server orders.
+  const minimum = typeof info.min_renewal_years === "number" && info.min_renewal_years > 1 ? info.min_renewal_years : 1;
+  const years = asked ?? minimum;
+  const term = yearsLabel(years);
   const total = yearly !== undefined ? roundToCent(yearly * years) : undefined;
+  const minimumNote = minimum > 1 ? ` ${pc.dim(`(${yearsLabel(minimum)} at a time)`)}` : "";
   s.stop(yearly !== undefined
-    ? `${S.success} ${fmt.domain(domain)} ${S.dot} renews at ${fmt.price(yearly.toFixed(2))}/yr`
+    ? `${S.success} ${fmt.domain(domain)} ${S.dot} renews at ${fmt.price(yearly.toFixed(2))}/yr${minimumNote}`
     : `${fmt.domain(domain)} ${S.dot} ${pc.dim("renewal price unknown")}`);
+  if (years < minimum) {
+    const atLeast = yearly !== undefined ? `, ${fmt.price(roundToCent(yearly * minimum).toFixed(2))} in total` : "";
+    fail(`${domain} cannot be renewed for ${term}: it renews for at least ${yearsLabel(minimum)}${atLeast}. Nothing was charged.`, {
+      code: "TERM_BELOW_MINIMUM", hint: `Re-run with --years ${minimum}, or leave --years out.`, json: options.json, fields: options.fields,
+    });
+  }
 
   // The renewal charges nothing above the total shown, unless --max-price says otherwise.
   let ceiling = requested ?? total;
