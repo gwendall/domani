@@ -268,11 +268,13 @@ program
   .option("--max-price <price>", "Maximum price filter")
   .option("--all", "Show taken domains too")
   .option("--expand", "Check 30+ TLDs including creative/exotic extensions")
+  .option("--sort <sort>", "dropping (taken names about to become free first) or newest (latest registrations first), with why")
   .option("--json", "Output as JSON")
   .option("--fields <fields>", "Filter JSON output fields (comma-separated)")
   .addHelpText("after", `
 Examples:
   domani search myapp                   # check popular TLDs
+  domani search myapp --sort dropping   # taken names about to become free, with when
   domani search myapp .io .fm .xyz      # specific TLDs
   domani search myapp --expand          # check 30+ TLDs
   domani search myapp --max-price 20    # only affordable options
